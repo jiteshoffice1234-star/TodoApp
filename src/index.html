@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo App</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="toastContainer" class="toast-container"></div>
+
+  <div id="app">
+    <header id="appHeader">
+      <div class="header-left">
+        <h1>Todo App</h1>
+        <span id="todoCount" class="todo-count">0</span>
+      </div>
+      <div class="header-actions">
+        <button id="advancedSearchToggle" class="icon-btn" title="Advanced Search">🔍</button>
+        <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
+        <button id="manageTags" class="icon-btn" title="Tags">🏷️</button>
+        <button id="themeToggle" class="icon-btn" title="Toggle theme">🌙</button>
+      </div>
+    </header>
+
+    <!-- Advanced Search Panel -->
+    <div id="advancedSearch" class="advanced-search hidden">
+      <div class="adv-search-row">
+        <div>
+          <label>From</label>
+          <input type="date" id="advDateFrom" />
+        </div>
+        <div>
+          <label>To</label>
+          <input type="date" id="advDateTo" />
+        </div>
+      </div>
+      <div class="adv-search-row">
+        <div>
+          <label>Priority</label>
+          <div class="adv-priority-filters">
+            <label class="adv-check"><input type="checkbox" data-pri="high" checked /> High</label>
+            <label class="adv-check"><input type="checkbox" data-pri="medium" checked /> Medium</label>
+            <label class="adv-check"><input type="checkbox" data-pri="low" checked /> Low</label>
+          </div>
+        </div>
+        <div>
+          <label>Tags</label>
+          <div id="advTagFilters" class="adv-tag-filters"></div>
+        </div>
+      </div>
+      <div class="adv-search-actions">
+        <button id="clearAdvancedSearch" class="text-btn">Clear all filters</button>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-bar">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search todos... (press / to focus)" />
+      <button id="clearSearch" class="search-clear hidden">✕</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <button class="filter-chip active" data-filter="all">
+        <span class="chip-label">All</span>
+        <span id="countAll" class="chip-count">0</span>
+      </button>
+      <button class="filter-chip" data-filter="pending">
+        <span class="chip-label">Pending</span>
+        <span id="countPending" class="chip-count">0</span>
+      </button>
+      <button class="filter-chip" data-filter="done">
+        <span class="chip-label">Done</span>
+        <span id="countDone" class="chip-count">0</span>
+      </button>
+    </div>
+
+    <!-- Todo List -->
+    <div id="todoList" class="todo-list"></div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="empty-state hidden">
+      <div class="empty-icon">📝</div>
+      <h2 id="emptyTitle">No todos yet</h2>
+      <p id="emptySubtitle">Click + to add your first todo</p>
+    </div>
+
+    <button id="addBtn" class="fab" title="New Todo (N)">+</button>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">✨ New Todo</h2>
+        <button class="icon-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <label>Title *</label>
+        <input type="text" id="todoTitle" placeholder="What needs to be done?" />
+
+        <label>Description</label>
+        <textarea id="todoDesc" placeholder="Add details..." rows="3"></textarea>
+
+        <div class="modal-row">
+          <div>
+            <label>Priority</label>
+            <div class="priority-selector">
+              <button class="priority-btn" data-priority="high">🔴 High</button>
+              <button class="priority-btn active" data-priority="medium">🟠 Medium</button>
+              <button class="priority-btn" data-priority="low">🟢 Low</button>
+            </div>
+          </div>
+          <div>
+            <label>Due Date</label>
+            <input type="date" id="todoDueDate" />
+            <div class="quick-dates">
+              <button class="quick-date-btn" data-offset="0">Today</button>
+              <button class="quick-date-btn" data-offset="1">Tomorrow</button>
+              <button class="quick-date-btn" data-offset="7">Next week</button>
+            </div>
+            <button id="clearDate" class="text-btn">Clear date</button>
+          </div>
+        </div>
+
+        <label>Tags</label>
+        <div id="tagSelector" class="tag-selector"></div>
+
+        <label>📌 Pin to top</label>
+        <label class="switch">
+          <input type="checkbox" id="todoPinned" />
+          <span class="slider"></span>
+          <span class="switch-label">Keep this todo pinned at top</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" id="saveBtn">✨ Add Todo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tags Modal -->
+  <div id="tagModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🏷️ Manage Tags</h2>
+        <button class="icon-btn" onclick="closeTagModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="cat-add-row">
+          <input type="text" id="tagName" placeholder="Tag name" />
+          <div id="tagColorPicker" class="color-picker"></div>
+          <button class="btn-primary" id="addTagBtn">+</button>
+        </div>
+        <div id="tagList" class="cat-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
