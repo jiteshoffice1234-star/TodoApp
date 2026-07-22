@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../data/models/todo.dart';
 import '../../data/models/category.dart';
 import '../../data/models/recurring_config.dart';
 import '../../core/theme/color_utils.dart';
+import '../../providers/todo_provider.dart';
 import 'priority_badge.dart';
 
 class TodoCard extends StatelessWidget {
@@ -42,6 +44,12 @@ class TodoCard extends StatelessWidget {
         duration: Duration(milliseconds: 300 + index * 50),
         child: Dismissible(
           key: Key('todo_${todo.id}'),
+          confirmDismiss: (direction) async {
+            if (direction == DismissDirection.endToStart) {
+              return true;
+            }
+            return false;
+          },
           onDismissed: (_) => onDelete(),
           background: Container(
             alignment: Alignment.centerRight,
@@ -49,20 +57,6 @@ class TodoCard extends StatelessWidget {
             color: Colors.red,
             child: const Icon(Icons.delete, color: Colors.white),
           ),
-          secondaryBackground: Container(
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 20),
-            color: Colors.green,
-            child: const Icon(Icons.check, color: Colors.white),
-          ),
-          confirmDismiss: (direction) async {
-            if (direction == DismissDirection.endToStart) {
-              return true;
-            } else {
-              onToggle();
-              return false;
-            }
-          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,

@@ -29,6 +29,11 @@
 | Pin to top | ❌ | ✅ |
 | Rich text descriptions (bold/italic/lists) | ❌ | ✅ |
 | Plain multiline descriptions | ✅ | ✅ |
+| Natural Language Quick-Add | ✅ | ❌ |
+| Voice Input | ✅ | ❌ |
+| Kanban Board View | ✅ | ❌ |
+| Snooze & Postpone | ✅ | ❌ |
+| Cloud Sync (Firebase stub) | ✅ | ❌ |
 
 ### 🔄 Recurring Tasks
 - **Daily** — repeats every N days
@@ -87,8 +92,46 @@
 - Tag-specific filtering
 - Multi-select for batch operations (complete, delete, set category)
 
+### 🗣️ Natural Language Quick-Add
+- **Smart input bar** at top of home screen — type "Buy milk tomorrow 3pm high #groceries"
+- Automatic parsing: extracts due date, time, priority, tags, and title
+- Instant todo creation with zero taps on the form
+- Accessible from any screen via the persistent input bar
+
+### 🎤 Voice Input
+- Working speech-to-text via `speech_to_text` package
+- Mic button on home screen — tap to speak, parsed via natural language engine
+- Pulsing animation while listening for visual feedback
+- Supports same natural language format as the text quick-add bar
+
+### 📋 Kanban Board View
+- Horizontal column layout categorized by todo category
+- **Drag & drop** — long-press a card and drag it to a different category column
+- Visual drop target highlighting
+- Completed todo strip at the bottom with undo (tap × to move back to pending)
+- Filtered to show pending todos in columns; completed ones go to the strip
+
+### ⏰ Snooze & Postpone
+- **Snooze** — notification actions (Snooze 15m, Snooze 1h, Tomorrow) directly from the notification bar
+- **Postpone** — programmatic postpone via `TodoProvider.postponeTodo()` with custom duration
+- **Snoozed reminders** — reschedule notifications after snooze via `NotificationService.scheduleSnoozedReminder()`
+- Fully integrated with `flutter_local_notifications` action system
+
+### ☁️ Cloud Sync (Stub — Ready for Firebase)
+- **Sync service architecture** with connectivity monitoring via `connectivity_plus`
+- Status tracking: idle → syncing → success / error / offline
+- Automatic sync trigger on connectivity change
+- **Firebase dependencies** declared (`firebase_core`, `firebase_auth`, `cloud_firestore`)
+- Stub methods for upload/download — drop in `google-services.json` and uncomment to activate
+
+### 🎬 Animations
+- Smooth staggered list animations via `flutter_staggered_animations`
+- Quick-add bar expand/collapse transitions
+- Animated containers with `flutter_animate` support
+- Page transition animations via `animations` (OpenContainer API ready)
+- Voice input pulsing indicator
+
 ### 📱 Additional
-- Voice input button (placeholder — no microphone integration yet)
 - Android home screen widget (`home_widget` — experimental, requires platform testing)
 
 ---
@@ -99,13 +142,16 @@
 
 ```
 main.dart
-  └── TodoApp (MultiProvider)
-        ├── TodoProvider      → CRUD, filters, subtasks, stats
-        ├── ThemeProvider     → Dark/light mode, accent color
-        └── PomodoroProvider  → Timer state & sessions
+  └── TodoApp (StatefulWidget → MultiProvider)
+        ├── TodoProvider           → CRUD, filters, subtasks, stats, quick-add, postpone
+        ├── ThemeProvider          → Dark/light mode, accent color
+        ├── PomodoroProvider       → Timer state & sessions
+        ├── SyncService (singleton) → Cloud sync + connectivity monitoring
+        └── NotificationService    → Local push + snooze actions
               └── MaterialApp (themed)
-                    ├── HomeScreen (list/grid)
+                    ├── HomeScreen (list/grid + QuickAddBar + VoiceInputButton)
                     ├── AddEditTodoScreen
+                    ├── BoardScreen (Kanban with drag & drop)
                     ├── CalendarScreen
                     ├── StatsScreen
                     ├── CategoriesScreen
@@ -291,21 +337,28 @@ flutter test --coverage
 ### Flutter App
 | Package | Version | Purpose |
 |---------|:-------:|---------|
-| `provider` | 6.1.2 | State management |
-| `sqflite` | 2.3.2 | SQLite database |
-| `intl` | 0.20.0 | Date formatting |
-| `shared_preferences` | 2.2.3 | Settings persistence |
-| `table_calendar` | 3.2.0 | Calendar view |
-| `fl_chart` | 0.66.0 | Statistics charts |
-| `reorderables` | 0.6.0 | Drag & drop |
-| `flutter_local_notifications` | 18.0.1 | Push notifications |
-| `csv` | 5.1.0 | CSV export |
-| `share_plus` | 13.2.0 | File sharing |
-| `image_picker` | 1.1.2 | *(declared but unused)* |
-| `home_widget` | 0.9.3 | Android home widget |
-| `flutter_staggered_animations` | 1.1.1 | List animations |
-| `uuid` | 4.5.1 | Subtask IDs |
-| `timezone` | 0.10.0 | Timezone support |
+| `provider` | ^6.1.2 | State management |
+| `sqflite` | ^2.3.2 | SQLite database |
+| `intl` | ^0.20.0 | Date formatting |
+| `shared_preferences` | ^2.2.3 | Settings persistence |
+| `table_calendar` | ^3.2.0 | Calendar view |
+| `fl_chart` | ^0.66.0 | Statistics charts |
+| `reorderables` | ^0.6.0 | Drag & drop |
+| `flutter_local_notifications` | ^18.0.1 | Push notifications |
+| `csv` | ^5.1.0 | CSV export |
+| `share_plus` | ^13.2.0 | File sharing |
+| `image_picker` | ^1.1.2 | *(declared but unused)* |
+| `home_widget` | ^0.9.3 | Android home widget |
+| `flutter_staggered_animations` | ^1.1.1 | List animations |
+| `speech_to_text` | ^7.0.0 | Voice input |
+| `flutter_animate` | ^4.5.0 | Micro-animations |
+| `animations` | ^2.0.11 | Page transitions |
+| `connectivity_plus` | ^6.1.0 | Network monitoring |
+| `firebase_core` | ^3.12.0 | Firebase core (cloud sync) |
+| `firebase_auth` | ^5.5.0 | Firebase auth (cloud sync) |
+| `cloud_firestore` | ^5.7.0 | Firestore (cloud sync) |
+| `uuid` | ^4.5.1 | Subtask IDs |
+| `timezone` | ^0.10.0 | Timezone support |
 
 ### Electron App
 | Package | Version | Purpose |
@@ -326,9 +379,12 @@ TodoApp/
 │   │   ├── database/
 │   │   │   └── database_helper.dart   # SQLite connection & migrations
 │   │   ├── services/
-│   │   │   ├── backup_service.dart    # JSON / CSV export/import
-│   │   │   ├── notification_service.dart # Local notifications
-│   │   │   └── widget_service.dart    # Home screen widget
+│   │   │   ├── backup_service.dart         # JSON / CSV export/import
+│   │   │   ├── notification_service.dart   # Local notifications + snooze actions
+│   │   │   ├── natural_language_parser.dart # Quick-add natural language parsing
+│   │   │   ├── voice_service.dart          # Speech-to-text wrapper
+│   │   │   ├── sync_service.dart           # Cloud sync (Firebase stub)
+│   │   │   └── widget_service.dart         # Home screen widget
 │   │   └── theme/
 │   │       ├── app_theme.dart         # Light/dark themes, accent colors
 │   │       └── color_utils.dart       # Hex color parsing utility
@@ -347,20 +403,22 @@ TodoApp/
 │   │   └── pomodoro_provider.dart    # Pomodoro timer
 │   └── ui/
 │       ├── screens/
-│       │   ├── home_screen.dart      # Main todo list
+│       │   ├── home_screen.dart         # Main todo list + QuickAddBar + VoiceInputButton
 │       │   ├── add_edit_todo_screen.dart # Create/edit form
-│       │   ├── calendar_screen.dart  # Calendar view
-│       │   ├── stats_screen.dart     # Statistics
-│       │   ├── categories_screen.dart # Category manager
-│       │   ├── pomodoro_screen.dart  # Timer UI
-│       │   ├── settings_screen.dart  # Appearance settings
-│       │   └── backup_screen.dart    # Backup & restore
+│       │   ├── board_screen.dart        # Kanban board with drag & drop
+│       │   ├── calendar_screen.dart     # Calendar view
+│       │   ├── stats_screen.dart        # Statistics
+│       │   ├── categories_screen.dart   # Category manager
+│       │   ├── pomodoro_screen.dart     # Timer UI
+│       │   ├── settings_screen.dart     # Appearance settings
+│       │   └── backup_screen.dart       # Backup & restore
 │       └── widgets/
-│           ├── todo_card.dart        # List tile
-│           ├── grid_todo_card.dart   # Grid tile
-│           ├── priority_badge.dart   # Priority indicator
-│           ├── empty_state.dart      # Empty placeholder
-│           └── voice_input_button.dart # Voice input stub
+│           ├── todo_card.dart         # List tile (swipe delete)
+│           ├── grid_todo_card.dart    # Grid tile
+│           ├── priority_badge.dart    # Priority indicator
+│           ├── empty_state.dart       # Empty placeholder
+│           ├── quick_add_bar.dart     # Natural language quick-add bar
+│           └── voice_input_button.dart # Voice input button with pulse animation
 ├── src/                          # Electron / web frontend
 │   ├── index.html                # Main HTML page
 │   ├── app.js                    # Full Electron SPA (CRUD, calendar, pomodoro)
@@ -387,13 +445,9 @@ TodoApp/
 | No database indexes on frequent query columns | 🟡 Medium | Performance impact for large datasets |
 | No pagination — all todos loaded into memory | 🟢 Low | Noticeable with 1000+ todos |
 | No data encryption (plain SQLite / JSON) | 🟢 Low | Local-only app, but no encryption at rest |
-| Renamed `_parseColor` utility — now shared via `color_utils.dart` | ✅ Fixed | |
-| `reorderTodos` now operates on `_todos` directly | ✅ Fixed | Drag-drop reorder now works |
-| Pomodoro no longer auto-cycles; has Stop button | ✅ Fixed | User controls session flow |
-| Notifications/widget services now initialized in `main.dart` | ✅ Fixed | |
-| `_parseColor` / `int.parse` — now error-safe | ✅ Fixed | |
-| CSP added to Electron HTML | ✅ Fixed | |
-| `CREATE TABLE IF NOT EXISTS` in migrations | ✅ Fixed | |
+| Cloud Sync requires Firebase project + `google-services.json` | 🟡 Medium | Stub ready, needs Firebase setup |
+| Voice input requires Android 5+ with Google Speech Services | 🟢 Low | Platform-dependent |
+| Flutter SDK unavailable — no `flutter analyze` / `flutter test` | 🟡 Medium | Development machine constraint |
 
 ---
 
@@ -419,4 +473,6 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
   <a href="https://github.com/jiteshoffice1234-star/TodoApp">GitHub</a> •
   <a href="https://github.com/jiteshoffice1234-star/TodoApp/issues">Issues</a> •
   <a href="https://github.com/jiteshoffice1234-star/TodoApp/pulls">Pull Requests</a>
+  <br><br>
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=14&duration=3000&pause=500&color=2196F3&center=true&vCenter=true&width=450&lines=Task+management+made+simple;Built+with+Flutter+%26+Electron;Powered+by+open+source" alt="Typing SVG" />
 </div>

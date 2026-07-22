@@ -7,6 +7,7 @@ import '../data/repositories/todo_repository.dart';
 import '../data/repositories/category_repository.dart';
 import '../core/database/database_helper.dart';
 import '../core/services/notification_service.dart';
+import '../core/services/natural_language_parser.dart';
 
 enum TodoFilter { all, pending, done }
 enum TodoSort { dateCreated, dateUpdated, dueDate, priority, alphabetical, sortOrder }
@@ -265,6 +266,15 @@ class TodoProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setCategoryForTodo(int todoId, int? categoryId) async {
+    final index = _todos.indexWhere((t) => t.id == todoId);
+    if (index == -1) return;
+    final updated = _todos[index].copyWith(categoryId: categoryId);
+    await _todoRepo.update(updated);
+    _todos[index] = updated;
+    notifyListeners();
+  }
+
   Future<void> setCategoryForSelected(int? categoryId) async {
     for (final id in _selectedTodoIds) {
       final index = _todos.indexWhere((t) => t.id == id);
@@ -334,6 +344,20 @@ class TodoProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addFromQuickAdd(ParsedTodo parsed) async {
+    final todo = Todo(
+      title: parsed.title,
+      priority: parsed.priority ?? 'medium',
+      dueDate: parsed.dueDate,
+      tags: parsed.tags,
+      recurringConfig: parsed.recurring ?? RecurringConfig(type: RecurrenceType.none),
+      hasReminder: parsed.hasReminder,
+      reminderAt: parsed.reminderAt,
+      sortOrder: _todos.length,
+    );
+    await saveTodo(todo);
+  }
+
   Future<void> saveTodo(Todo todo) async {
     if (todo.id == null) {
       final id = await _todoRepo.insert(todo);
@@ -351,6 +375,54 @@ class TodoProvider extends ChangeNotifier {
         await NotificationService.instance.cancelReminder(todo.id!);
       }
     }
+    notifyListeners();
+  }
+
+  Future<void> postponeTodo(int id, {Duration? custom}) async {
+    final index = _todos.indexWhere((t) => t.id == id);
+    if (index == -1) return;
+    final todo = _todos[index];
+    final duration = custom ?? const Duration(days: 1);
+    final newDueDate = todo.dueDate != null ? todo.dueDate!.add(duration) : DateTime.now().add(duration);
+    final updated = todo.copyWith(
+      dueDate: newDueDate,
+      reminderAt: todo.hasReminder ? newDueDate.subtract(const Duration(hours: 1)) : todo.reminderAt,
+    );
+    await _todoRepo.update(updated);
+    _todos[index] = updated;
+    notifyListeners();
+  }
+
+  Future<void> snoozeReminder(int id, String action) async {
+    final index = _todos.indexWhere((t) => t.id == id);
+    if (index == -1) return;
+
+    Duration duration;
+    switch (action) {
+      case 'snooze_15':
+        duration = const Duration(minutes: 15);
+        break;
+      case 'snooze_60':
+        duration = const Duration(hours: 1);
+        break;
+      case 'snooze_tomorrow':
+        duration = const Duration(days: 1);
+        break;
+      default:
+        duration = const Duration(hours: 1);
+    }
+
+    final todo = _todos[index];
+    final newReminderAt = DateTime.now().add(duration);
+    final updated = todo.copyWith(
+      reminderAt: newReminderAt,
+      hasReminder: true,
+    );
+    await _todoRepo.update(updated);
+    _todos[index] = updated;
+    await NotificationService.instance.scheduleSnoozedReminder(
+      id, todo.title, todo.description, duration,
+    );
     notifyListeners();
   }
 

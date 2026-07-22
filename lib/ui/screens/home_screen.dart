@@ -7,6 +7,7 @@ import '../../core/theme/color_utils.dart';
 import '../widgets/todo_card.dart';
 import '../widgets/grid_todo_card.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/quick_add_bar.dart';
 import '../widgets/voice_input_button.dart';
 import 'add_edit_todo_screen.dart';
 import 'categories_screen.dart';
@@ -15,6 +16,7 @@ import 'backup_screen.dart';
 import 'calendar_screen.dart';
 import 'pomodoro_screen.dart';
 import 'settings_screen.dart';
+import 'board_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -123,6 +125,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       MaterialPageRoute(builder: (_) => const CategoriesScreen()),
                     );
                     break;
+                  case 'board':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const BoardScreen()),
+                    );
+                    break;
                   case 'calendar':
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const CalendarScreen()),
@@ -169,6 +176,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'board',
+                  child: Row(
+                    children: [
+                      Icon(Icons.column),
+                      SizedBox(width: 8),
+                      Text('Board'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'calendar',
                   child: Row(
@@ -253,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
+          const QuickAddBar(),
           _buildSearchBar(todoProvider),
           _buildFilterChips(todoProvider, theme),
           _buildTagFilter(todoProvider, theme),

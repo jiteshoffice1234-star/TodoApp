@@ -13,14 +13,56 @@ class NotificationService {
 
   Future<void> init() async {
     if (_initialized) return;
-    
+
     tz.initializeTimeZones();
-    
+
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
-    
-    await _plugin.initialize(initSettings);
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+    );
+
+    await _plugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: _onNotificationAction,
+    );
     _initialized = true;
+  }
+
+  void _onNotificationAction(NotificationResponse response) {
+    if (response.actionId == null) return;
+    final todoId = int.tryParse(response.payload ?? '');
+    if (todoId == null) return;
+    _snoozeCallback?.call(todoId, response.actionId!);
+  }
+
+  void Function(int todoId, String action)? _snoozeCallback;
+
+  void setSnoozeCallback(void Function(int todoId, String action) cb) {
+    _snoozeCallback = cb;
+  }
+
+  void scheduleSnoozedReminder(int todoId, String title, String description, Duration fromNow) {
+    final reminderTime = DateTime.now().add(fromNow);
+    final tzDateTime = tz.TZDateTime.from(reminderTime, tz.local);
+
+    _plugin.zonedSchedule(
+      todoId,
+      'Reminder: $title',
+      description.isNotEmpty ? description : 'Todo reminder',
+      tzDateTime,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'todo_reminders',
+          'Todo Reminders',
+          channelDescription: 'Notifications for todo reminders',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+    );
   }
 
   Future<void> scheduleReminder(Todo todo) async {
