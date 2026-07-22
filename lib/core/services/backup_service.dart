@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/models/todo.dart';
 import '../../data/models/category.dart';
+import '../../data/models/subtask.dart';
+import '../../data/models/recurring_config.dart';
 import '../database/database_helper.dart';
 
 class BackupService {
@@ -23,7 +25,7 @@ class BackupService {
   Future<String> exportToJson(List<Todo> todos, List<TodoCategory> categories) async {
     final data = {
       'exportDate': DateTime.now().toIso8601String(),
-      'version': '2.0.0',
+      'version': '3.0.0',
       'todos': todos.map((t) => t.toMap()).toList(),
       'categories': categories.map((c) => c.toMap()).toList(),
     };
@@ -37,7 +39,10 @@ class BackupService {
 
   Future<String> exportToCsv(List<Todo> todos, List<TodoCategory> categories) async {
     final rows = <List<dynamic>>[];
-    rows.add(['ID', 'Title', 'Description', 'Priority', 'Due Date', 'Category', 'Done', 'Tags', 'Created', 'Updated']);
+    rows.add([
+      'ID', 'Title', 'Description', 'Priority', 'Due Date', 'Category', 
+      'Done', 'Tags', 'Created', 'Updated', 'Recurring', 'Sort Order'
+    ]);
     
     for (final todo in todos) {
       final catName = categories.where((c) => c.id == todo.categoryId).map((c) => c.name).firstOrNull ?? '';
@@ -52,6 +57,8 @@ class BackupService {
         todo.tags.join('; '),
         todo.createdAt.toIso8601String(),
         todo.updatedAt.toIso8601String(),
+        todo.recurringConfig.label,
+        todo.sortOrder,
       ]);
     }
     
@@ -94,6 +101,7 @@ class BackupService {
         tags: row[7].toString().split('; ').where((t) => t.isNotEmpty).toList(),
         createdAt: DateTime.tryParse(row[8].toString()) ?? DateTime.now(),
         updatedAt: DateTime.tryParse(row[9].toString()) ?? DateTime.now(),
+        sortOrder: row[11] is int ? row[11] as int : 0,
       ));
     }
     
@@ -101,7 +109,9 @@ class BackupService {
   }
 
   Future<void> shareBackup(String filePath) async {
-    await Share.shareXFiles([XFile(filePath)], text: 'Todo App Backup');
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(filePath)], text: 'Todo App Backup'),
+    );
   }
 
   Future<List<FileSystemEntity>> getBackupFiles() async {

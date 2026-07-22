@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../providers/todo_provider.dart';
+import '../../providers/pomodoro_provider.dart';
+import '../../data/models/recurring_config.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -9,6 +11,7 @@ class StatsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TodoProvider>();
+    final pomodoro = context.watch<PomodoroProvider>();
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -25,6 +28,12 @@ class StatsScreen extends StatelessWidget {
             _buildCompletionChart(provider, theme),
             const SizedBox(height: 16),
             _buildCategoryChart(provider, theme),
+            const SizedBox(height: 16),
+            _buildSubtaskStats(provider, theme),
+            const SizedBox(height: 16),
+            _buildRecurringStats(provider, theme),
+            const SizedBox(height: 16),
+            _buildPomodoroStats(pomodoro, theme),
             const SizedBox(height: 16),
             _buildQuickStats(provider, theme),
           ],
@@ -79,7 +88,6 @@ class StatsScreen extends StatelessWidget {
     final stats = provider.completionStats;
     final completed = stats['completed'] ?? 0;
     final pending = stats['pending'] ?? 0;
-    final total = completed + pending;
 
     return Card(
       child: Padding(
@@ -222,6 +230,131 @@ class StatsScreen extends StatelessWidget {
                 final e = entry.value;
                 return _buildLegend(colors[idx % colors.length], '${e.key} (${e.value})');
               }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubtaskStats(TodoProvider provider, ThemeData theme) {
+    final todosWithSubtasks = provider.todos.where((t) => t.hasSubtasks).toList();
+    final totalSubtasks = todosWithSubtasks.fold<int>(0, (sum, t) => sum + t.subtasks.length);
+    final completedSubtasks = todosWithSubtasks.fold<int>(0, (sum, t) => sum + t.subtasks.where((s) => s.isDone).length);
+
+    if (todosWithSubtasks.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Subtask Progress',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.checklist, color: theme.colorScheme.primary),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$completedSubtasks / $totalSubtasks subtasks completed',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: totalSubtasks > 0 ? completedSubtasks / totalSubtasks : 0,
+                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecurringStats(TodoProvider provider, ThemeData theme) {
+    final recurringTodos = provider.todos.where(
+      (t) => t.recurringConfig.type != RecurrenceType.none,
+    ).toList();
+
+    if (recurringTodos.isEmpty) return const SizedBox.shrink();
+
+    final stats = <String, int>{};
+    for (final todo in recurringTodos) {
+      final label = todo.recurringConfig.label;
+      stats[label] = (stats[label] ?? 0) + 1;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Recurring Tasks',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            ...stats.entries.map((entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.repeat, size: 20, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(entry.key)),
+                  Text(
+                    '${entry.value}',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPomodoroStats(PomodoroProvider pomodoro, ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pomodoro Sessions',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem(
+                  'Sessions',
+                  pomodoro.sessionCount,
+                  Icons.timer,
+                  theme,
+                ),
+                _buildStatItem(
+                  'Focus Time',
+                  pomodoro.sessionCount * 25,
+                  Icons.access_time,
+                  theme,
+                ),
+              ],
             ),
           ],
         ),

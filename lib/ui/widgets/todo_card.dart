@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/todo.dart';
 import '../../data/models/category.dart';
+import '../../data/models/recurring_config.dart';
 import 'priority_badge.dart';
 
 class TodoCard extends StatelessWidget {
@@ -106,6 +107,22 @@ class TodoCard extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 6),
                                 ],
+                                if (todo.recurringConfig.type != RecurrenceType.none) ...[
+                                  Icon(
+                                    Icons.repeat,
+                                    size: 14,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
+                                if (todo.hasReminder) ...[
+                                  Icon(
+                                    Icons.notifications_active,
+                                    size: 14,
+                                    color: theme.colorScheme.tertiary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
                                 Expanded(
                                   child: Text(
                                     todo.title,
@@ -162,8 +179,55 @@ class TodoCard extends StatelessWidget {
                                     ),
                                   ),
                                 ],
+                                if (todo.recurringConfig.type != RecurrenceType.none) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.tertiaryContainer,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      todo.recurringConfig.label,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: theme.colorScheme.onTertiaryContainer,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
+                            // Subtask progress
+                            if (todo.hasSubtasks) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    size: 14,
+                                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${todo.subtasks.where((s) => s.isDone).length}/${todo.subtasks.length}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: LinearProgressIndicator(
+                                      value: todo.progress,
+                                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                                      minHeight: 4,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                             if (todo.tags.isNotEmpty) ...[
                               const SizedBox(height: 6),
                               Wrap(

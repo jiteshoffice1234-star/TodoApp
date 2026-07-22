@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
 import '../../providers/todo_provider.dart';
 import '../../core/services/backup_service.dart';
 
@@ -110,16 +109,32 @@ class _BackupScreenState extends State<BackupScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('Restore your todos from a JSON backup file.'),
+            const Text('Restore your todos from a previous JSON backup below.'),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _importFromJson,
-                icon: const Icon(Icons.file_upload),
-                label: const Text('Import JSON'),
-              ),
-            ),
+            if (_backups.where((f) => f.path.endsWith('.json')).isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('No JSON backups available to import'),
+                ),
+              )
+            else
+              ...(_backups.where((f) => f.path.endsWith('.json')).map((file) {
+                final fileName = file.path.split('/').last;
+                final date = File(file.path).lastModifiedSync();
+                return ListTile(
+                  leading: Icon(Icons.code, color: theme.colorScheme.primary),
+                  title: Text(fileName, style: theme.textTheme.bodyMedium),
+                  subtitle: Text(
+                    DateFormat('MMM d, yyyy HH:mm').format(date),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  trailing: FilledButton.tonal(
+                    onPressed: () => _importFromBackup(file.path),
+                    child: const Text('Import'),
+                  ),
+                );
+              })),
           ],
         ),
       ),
@@ -209,6 +224,7 @@ class _BackupScreenState extends State<BackupScreen> {
         const SnackBar(content: Text('JSON backup exported')),
       );
     }
+    await _loadBackups();
   }
 
   Future<void> _exportToCsv() async {
@@ -224,53 +240,47 @@ class _BackupScreenState extends State<BackupScreen> {
         const SnackBar(content: Text('CSV backup exported')),
       );
     }
+    await _loadBackups();
   }
 
-  Future<void> _importFromJson() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    
-    if (result != null && result.files.single.path != null) {
-      try {
-        final data = await BackupService.instance.importFromJson(result.files.single.path!);
-        final todos = data['todos'] as List;
+  Future<void> _importFromBackup(String path) async {
+    try {
+      final data = await BackupService.instance.importFromJson(path);
+      final todos = data['todos'] as List;
+      
+      if (mounted) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Import Data'),
+            content: Text('Import ${todos.length} todos?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Import'),
+              ),
+            ],
+          ),
+        );
         
-        if (mounted) {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Import Data'),
-              content: Text('Import ${todos.length} todos?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text('Import'),
-                ),
-              ],
-            ),
-          );
-          
-          if (confirmed == true) {
-            await context.read<TodoProvider>().importTodos(todos.cast());
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Imported ${todos.length} todos')),
-              );
-            }
+        if (confirmed == true) {
+          await context.read<TodoProvider>().importTodos(todos.cast());
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Imported ${todos.length} todos')),
+            );
           }
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Import failed: $e')),
-          );
-        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: $e')),
+        );
       }
     }
   }

@@ -1,3 +1,6 @@
+import 'recurring_config.dart';
+import 'subtask.dart';
+
 class Todo {
   final int? id;
   final String title;
@@ -10,6 +13,20 @@ class Todo {
   final List<String> attachments;
   final DateTime createdAt;
   final DateTime updatedAt;
+  
+  // NEW: Recurring
+  final RecurringConfig recurringConfig;
+  final DateTime? nextDueDate;
+  
+  // NEW: Subtasks
+  final List<Subtask> subtasks;
+  
+  // NEW: Reminder
+  final DateTime? reminderAt;
+  final bool hasReminder;
+  
+  // NEW: Sort order for drag-drop
+  final int sortOrder;
 
   Todo({
     this.id,
@@ -23,8 +40,24 @@ class Todo {
     this.attachments = const [],
     DateTime? createdAt,
     DateTime? updatedAt,
+    RecurringConfig? recurringConfig,
+    this.nextDueDate,
+    this.subtasks = const [],
+    this.reminderAt,
+    this.hasReminder = false,
+    this.sortOrder = 0,
   })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+        updatedAt = updatedAt ?? DateTime.now(),
+        recurringConfig = recurringConfig ?? RecurringConfig(type: RecurrenceType.none);
+
+  double get progress {
+    if (subtasks.isEmpty) return isDone ? 1.0 : 0.0;
+    if (subtasks.every((s) => s.isDone)) return 1.0;
+    final done = subtasks.where((s) => s.isDone).length;
+    return done / subtasks.length;
+  }
+
+  bool get hasSubtasks => subtasks.isNotEmpty;
 
   Map<String, dynamic> toMap() {
     return {
@@ -39,6 +72,16 @@ class Todo {
       'attachments': attachments.join(','),
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'recurringConfig': recurringConfig.toMap()['type'],
+      'recurringInterval': recurringConfig.toMap()['interval'],
+      'recurringDaysOfWeek': recurringConfig.toMap()['daysOfWeek'],
+      'recurringDayOfMonth': recurringConfig.toMap()['dayOfMonth'],
+      'recurringEndDate': recurringConfig.toMap()['endDate'],
+      'recurringHasEnd': recurringConfig.toMap()['hasEnd'],
+      'nextDueDate': nextDueDate?.millisecondsSinceEpoch,
+      'reminderAt': reminderAt?.millisecondsSinceEpoch,
+      'hasReminder': hasReminder ? 1 : 0,
+      'sortOrder': sortOrder,
     };
   }
 
@@ -61,6 +104,22 @@ class Todo {
       updatedAt: map['updatedAt'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int)
           : DateTime.now(),
+      recurringConfig: RecurringConfig.fromMap({
+        'type': map['recurringConfig'] ?? 0,
+        'interval': map['recurringInterval'] ?? 1,
+        'daysOfWeek': map['recurringDaysOfWeek'] ?? '',
+        'dayOfMonth': map['recurringDayOfMonth'],
+        'endDate': map['recurringEndDate'],
+        'hasEnd': map['recurringHasEnd'] ?? 0,
+      }),
+      nextDueDate: map['nextDueDate'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['nextDueDate'] as int)
+          : null,
+      reminderAt: map['reminderAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['reminderAt'] as int)
+          : null,
+      hasReminder: (map['hasReminder'] as int? ?? 0) == 1,
+      sortOrder: map['sortOrder'] as int? ?? 0,
     );
   }
 
@@ -76,19 +135,34 @@ class Todo {
     List<String>? attachments,
     DateTime? createdAt,
     DateTime? updatedAt,
+    RecurringConfig? recurringConfig,
+    DateTime? nextDueDate,
+    List<Subtask>? subtasks,
+    DateTime? reminderAt,
+    bool? hasReminder,
+    int? sortOrder,
+    bool clearDueDate = false,
+    bool clearNextDueDate = false,
+    bool clearReminder = false,
   }) {
     return Todo(
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
       priority: priority ?? this.priority,
-      dueDate: dueDate ?? this.dueDate,
+      dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
       categoryId: categoryId ?? this.categoryId,
       isDone: isDone ?? this.isDone,
       tags: tags ?? this.tags,
       attachments: attachments ?? this.attachments,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      recurringConfig: recurringConfig ?? this.recurringConfig,
+      nextDueDate: clearNextDueDate ? null : (nextDueDate ?? this.nextDueDate),
+      subtasks: subtasks ?? this.subtasks,
+      reminderAt: clearReminder ? null : (reminderAt ?? this.reminderAt),
+      hasReminder: hasReminder ?? this.hasReminder,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 }

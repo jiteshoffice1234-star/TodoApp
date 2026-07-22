@@ -11,6 +11,9 @@ import 'add_edit_todo_screen.dart';
 import 'categories_screen.dart';
 import 'stats_screen.dart';
 import 'backup_screen.dart';
+import 'calendar_screen.dart';
+import 'pomodoro_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -46,109 +49,205 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Todo App'),
+        title: todoProvider.isMultiSelectMode
+            ? Text('${todoProvider.selectedTodoIds.length} selected')
+            : const Text('Todo App'),
+        leading: todoProvider.isMultiSelectMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => todoProvider.toggleMultiSelectMode(),
+              )
+            : null,
         actions: [
-          IconButton(
-            icon: Icon(
-                themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => themeProvider.toggleTheme(),
-            tooltip: 'Toggle theme',
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.sort),
-            onSelected: (value) {
-              switch (value) {
-                case 'sort':
-                  _showSortDialog(todoProvider);
-                  break;
-                case 'view':
-                  todoProvider.setViewMode(
-                    todoProvider.viewMode == ViewMode.list
-                        ? ViewMode.grid
-                        : ViewMode.list,
-                  );
-                  break;
-                case 'stats':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const StatsScreen()),
-                  );
-                  break;
-                case 'backup':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const BackupScreen()),
-                  );
-                  break;
-                case 'categories':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CategoriesScreen()),
-                  );
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'sort',
-                child: Row(
-                  children: [
-                    const Icon(Icons.sort),
-                    const SizedBox(width: 8),
-                    Text('Sort: ${_getSortLabel(todoProvider.sort)}'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'view',
-                child: Row(
-                  children: [
-                    Icon(todoProvider.viewMode == ViewMode.list
-                        ? Icons.grid_view
-                        : Icons.view_list),
-                    const SizedBox(width: 8),
-                    Text(todoProvider.viewMode == ViewMode.list
-                        ? 'Grid View'
-                        : 'List View'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'stats',
-                child: Row(
-                  children: [
-                    Icon(Icons.bar_chart),
-                    SizedBox(width: 8),
-                    Text('Statistics'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'backup',
-                child: Row(
-                  children: [
-                    Icon(Icons.backup),
-                    SizedBox(width: 8),
-                    Text('Backup & Restore'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'categories',
-                child: Row(
-                  children: [
-                    Icon(Icons.category),
-                    SizedBox(width: 8),
-                    Text('Categories'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (todoProvider.doneCount > 0)
+          if (todoProvider.isMultiSelectMode) ...[
             IconButton(
-              icon: const Icon(Icons.clear_all),
-              onPressed: _confirmClearDone,
-              tooltip: 'Clear completed',
+              icon: const Icon(Icons.select_all),
+              onPressed: () => todoProvider.selectAllVisible(),
+              tooltip: 'Select all',
             ),
+            IconButton(
+              icon: const Icon(Icons.check_circle),
+              onPressed: todoProvider.selectedTodoIds.isEmpty
+                  ? null
+                  : () => _confirmBulkComplete(context, todoProvider),
+              tooltip: 'Complete selected',
+            ),
+            IconButton(
+              icon: const Icon(Icons.category),
+              onPressed: todoProvider.selectedTodoIds.isEmpty
+                  ? null
+                  : () => _showBulkCategoryDialog(context, todoProvider),
+              tooltip: 'Set category',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: todoProvider.selectedTodoIds.isEmpty
+                  ? null
+                  : () => _confirmBulkDelete(context, todoProvider),
+              tooltip: 'Delete selected',
+            ),
+          ] else ...[
+            IconButton(
+              icon: Icon(
+                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+              onPressed: () => themeProvider.toggleTheme(),
+              tooltip: 'Toggle theme',
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                switch (value) {
+                  case 'sort':
+                    _showSortDialog(todoProvider);
+                    break;
+                  case 'view':
+                    todoProvider.setViewMode(
+                      todoProvider.viewMode == ViewMode.list
+                          ? ViewMode.grid
+                          : ViewMode.list,
+                    );
+                    break;
+                  case 'stats':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const StatsScreen()),
+                    );
+                    break;
+                  case 'backup':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const BackupScreen()),
+                    );
+                    break;
+                  case 'categories':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CategoriesScreen()),
+                    );
+                    break;
+                  case 'calendar':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CalendarScreen()),
+                    );
+                    break;
+                  case 'pomodoro':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PomodoroScreen()),
+                    );
+                    break;
+                  case 'settings':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                    break;
+                  case 'multiSelect':
+                    todoProvider.toggleMultiSelectMode();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'sort',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.sort),
+                      const SizedBox(width: 8),
+                      Text('Sort: ${_getSortLabel(todoProvider.sort)}'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'view',
+                  child: Row(
+                    children: [
+                      Icon(todoProvider.viewMode == ViewMode.list
+                          ? Icons.grid_view
+                          : Icons.view_list),
+                      const SizedBox(width: 8),
+                      Text(todoProvider.viewMode == ViewMode.list
+                          ? 'Grid View'
+                          : 'List View'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'calendar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_month),
+                      SizedBox(width: 8),
+                      Text('Calendar'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'pomodoro',
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer),
+                      SizedBox(width: 8),
+                      Text('Pomodoro'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'stats',
+                  child: Row(
+                    children: [
+                      Icon(Icons.bar_chart),
+                      SizedBox(width: 8),
+                      Text('Statistics'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'backup',
+                  child: Row(
+                    children: [
+                      Icon(Icons.backup),
+                      SizedBox(width: 8),
+                      Text('Backup & Restore'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'categories',
+                  child: Row(
+                    children: [
+                      Icon(Icons.category),
+                      SizedBox(width: 8),
+                      Text('Categories'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'multiSelect',
+                  child: Row(
+                    children: [
+                      Icon(Icons.checklist),
+                      SizedBox(width: 8),
+                      Text('Multi-select'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings),
+                      SizedBox(width: 8),
+                      Text('Settings'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (todoProvider.doneCount > 0)
+              IconButton(
+                icon: const Icon(Icons.clear_all),
+                onPressed: _confirmClearDone,
+                tooltip: 'Clear completed',
+              ),
+          ],
         ],
       ),
       body: Column(
@@ -167,19 +266,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const VoiceInputButton(),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AddEditTodoScreen()),
+      floatingActionButton: todoProvider.isMultiSelectMode
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const VoiceInputButton(),
+                const SizedBox(height: 16),
+                FloatingActionButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AddEditTodoScreen()),
+                  ),
+                  child: const Icon(Icons.add),
+                ),
+              ],
             ),
-            child: const Icon(Icons.add),
-          ),
-        ],
-      ),
     );
   }
 
@@ -265,23 +366,62 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildTodoList(
       List<Todo> todos, TodoProvider provider, ThemeData theme) {
-    return ListView.builder(
+    return ReorderableListView.builder(
       padding: const EdgeInsets.only(bottom: 80),
       itemCount: todos.length,
+      onReorder: (oldIndex, newIndex) {
+        provider.reorderTodos(oldIndex, newIndex);
+      },
       itemBuilder: (context, index) {
         final todo = todos[index];
         final category = provider.getCategoryById(todo.categoryId);
-        return TodoCard(
-          todo: todo,
-          category: category,
-          index: index,
-          onToggle: () => provider.toggleTodo(todo.id!),
-          onEdit: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AddEditTodoScreen(todo: todo),
+        final isSelected = todo.id != null && provider.selectedTodoIds.contains(todo.id);
+        
+        return GestureDetector(
+          key: ValueKey(todo.id),
+          onLongPress: () {
+            if (!provider.isMultiSelectMode) {
+              provider.toggleMultiSelectMode();
+            }
+            if (todo.id != null) {
+              provider.toggleTodoSelection(todo.id!);
+            }
+          },
+          onTap: () {
+            if (provider.isMultiSelectMode && todo.id != null) {
+              provider.toggleTodoSelection(todo.id!);
+            } else {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AddEditTodoScreen(todo: todo),
+                ),
+              );
+            }
+          },
+          child: Container(
+            decoration: isSelected
+                ? BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    border: Border.all(
+                      color: theme.colorScheme.primary,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  )
+                : null,
+            child: TodoCard(
+              todo: todo,
+              category: category,
+              index: index,
+              onToggle: () => provider.toggleTodo(todo.id!),
+              onEdit: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AddEditTodoScreen(todo: todo),
+                ),
+              ),
+              onDelete: () => _confirmDelete(context, provider, todo),
             ),
           ),
-          onDelete: () => _confirmDelete(context, provider, todo),
         );
       },
     );
@@ -301,16 +441,51 @@ class _HomeScreenState extends State<HomeScreen> {
       itemBuilder: (context, index) {
         final todo = todos[index];
         final category = provider.getCategoryById(todo.categoryId);
-        return GridTodoCard(
-          todo: todo,
-          category: category,
-          onToggle: () => provider.toggleTodo(todo.id!),
-          onEdit: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AddEditTodoScreen(todo: todo),
+        final isSelected = todo.id != null && provider.selectedTodoIds.contains(todo.id);
+        
+        return GestureDetector(
+          key: ValueKey(todo.id),
+          onLongPress: () {
+            if (!provider.isMultiSelectMode) {
+              provider.toggleMultiSelectMode();
+            }
+            if (todo.id != null) {
+              provider.toggleTodoSelection(todo.id!);
+            }
+          },
+          onTap: () {
+            if (provider.isMultiSelectMode && todo.id != null) {
+              provider.toggleTodoSelection(todo.id!);
+            } else {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AddEditTodoScreen(todo: todo),
+                ),
+              );
+            }
+          },
+          child: Container(
+            decoration: isSelected
+                ? BoxDecoration(
+                    border: Border.all(
+                      color: theme.colorScheme.primary,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  )
+                : null,
+            child: GridTodoCard(
+              todo: todo,
+              category: category,
+              onToggle: () => provider.toggleTodo(todo.id!),
+              onEdit: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AddEditTodoScreen(todo: todo),
+                ),
+              ),
+              onDelete: () => _confirmDelete(context, provider, todo),
             ),
           ),
-          onDelete: () => _confirmDelete(context, provider, todo),
         );
       },
     );
@@ -328,6 +503,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'Priority';
       case TodoSort.alphabetical:
         return 'Alphabetical';
+      case TodoSort.sortOrder:
+        return 'Custom Order';
     }
   }
 
@@ -417,5 +594,106 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  void _confirmBulkComplete(BuildContext context, TodoProvider provider) {
+    final count = provider.selectedTodoIds.length;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Complete Selected'),
+        content: Text('Mark $count todos as completed?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              provider.completeSelected();
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$count todos completed'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Complete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmBulkDelete(BuildContext context, TodoProvider provider) {
+    final count = provider.selectedTodoIds.length;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Selected'),
+        content: Text('Delete $count todos?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () {
+              provider.deleteSelected();
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$count todos deleted'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBulkCategoryDialog(BuildContext context, TodoProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set Category'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.clear),
+              title: const Text('No Category'),
+              onTap: () {
+                provider.setCategoryForSelected(null);
+                Navigator.of(ctx).pop();
+              },
+            ),
+            ...provider.categories.map((cat) => ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: _parseColor(cat.color),
+                    radius: 12,
+                  ),
+                  title: Text(cat.name),
+                  onTap: () {
+                    provider.setCategoryForSelected(cat.id);
+                    Navigator.of(ctx).pop();
+                  },
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _parseColor(String hex) {
+    hex = hex.replaceAll('#', '');
+    if (hex.length == 6) hex = 'FF$hex';
+    return Color(int.parse(hex, radix: 16));
   }
 }

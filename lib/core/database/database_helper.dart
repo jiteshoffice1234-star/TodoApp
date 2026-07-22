@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../../data/models/todo.dart';
 import '../../data/models/category.dart';
+import '../../data/models/subtask.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -20,7 +21,7 @@ class DatabaseHelper {
     final path = join(dbPath, fileName);
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -48,7 +49,37 @@ class DatabaseHelper {
         attachments TEXT DEFAULT '',
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL,
+        recurringConfig INTEGER DEFAULT 0,
+        recurringInterval INTEGER DEFAULT 1,
+        recurringDaysOfWeek TEXT DEFAULT '',
+        recurringDayOfMonth INTEGER,
+        recurringEndDate INTEGER,
+        recurringHasEnd INTEGER DEFAULT 0,
+        nextDueDate INTEGER,
+        reminderAt INTEGER,
+        hasReminder INTEGER DEFAULT 0,
+        sortOrder INTEGER DEFAULT 0,
         FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE subtasks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        isDone INTEGER NOT NULL DEFAULT 0,
+        todoId INTEGER,
+        sortOrder INTEGER DEFAULT 0,
+        FOREIGN KEY (todoId) REFERENCES todos(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE pomodoro_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        todoId INTEGER,
+        startedAt INTEGER NOT NULL,
+        durationMinutes INTEGER NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (todoId) REFERENCES todos(id) ON DELETE CASCADE
       )
     ''');
   }
@@ -58,6 +89,38 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE todos ADD COLUMN tags TEXT DEFAULT ""');
       await db.execute('ALTER TABLE todos ADD COLUMN attachments TEXT DEFAULT ""');
       await db.execute('ALTER TABLE categories ADD COLUMN customColors TEXT DEFAULT ""');
+    }
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE todos ADD COLUMN recurringConfig INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE todos ADD COLUMN recurringInterval INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE todos ADD COLUMN recurringDaysOfWeek TEXT DEFAULT ""');
+      await db.execute('ALTER TABLE todos ADD COLUMN recurringDayOfMonth INTEGER');
+      await db.execute('ALTER TABLE todos ADD COLUMN recurringEndDate INTEGER');
+      await db.execute('ALTER TABLE todos ADD COLUMN recurringHasEnd INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE todos ADD COLUMN nextDueDate INTEGER');
+      await db.execute('ALTER TABLE todos ADD COLUMN reminderAt INTEGER');
+      await db.execute('ALTER TABLE todos ADD COLUMN hasReminder INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE todos ADD COLUMN sortOrder INTEGER DEFAULT 0');
+      await db.execute('''
+        CREATE TABLE subtasks (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          isDone INTEGER NOT NULL DEFAULT 0,
+          todoId INTEGER,
+          sortOrder INTEGER DEFAULT 0,
+          FOREIGN KEY (todoId) REFERENCES todos(id) ON DELETE CASCADE
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE pomodoro_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          todoId INTEGER,
+          startedAt INTEGER NOT NULL,
+          durationMinutes INTEGER NOT NULL,
+          completed INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (todoId) REFERENCES todos(id) ON DELETE CASCADE
+        )
+      ''');
     }
   }
 
@@ -83,8 +146,13 @@ class DatabaseHelper {
 
   Future<List<Todo>> getAllTodos() async {
     final db = await database;
-    final maps = await db.query('todos');
-    return maps.map((map) => Todo.fromMap(map)).toList();
+    final maps = await db.query('todos', orderBy: 'sortOrder ASC');
+    final todos = <Todo>[];
+    for (final map in maps) {
+      final subtasks = await getSubtasksForTodo(map['id'] as int);
+      todos.add(Todo.fromMap(map).copyWith(subtasks: subtasks));
+    }
+    return todos;
   }
 
   Future<List<Todo>> searchTodos(String query) async {
@@ -95,6 +163,81 @@ class DatabaseHelper {
       whereArgs: ['%$query%', '%$query%', '%$query%'],
     );
     return maps.map((map) => Todo.fromMap(map)).toList();
+  }
+
+  // Subtask operations
+  Future<List<Subtask>> getSubtasksForTodo(int todoId) async {
+    final db = await database;
+    final maps = await db.query(
+      'subtasks',
+      where: 'todoId = ?',
+      whereArgs: [todoId],
+      orderBy: 'sortOrder ASC',
+    );
+    return maps.map((map) => Subtask.fromMap(map)).toList();
+  }
+
+  Future<void> insertSubtask(Subtask subtask, int todoId) async {
+    final db = await database;
+    await db.insert('subtasks', subtask.toMap()..['todoId'] = todoId);
+  }
+
+  Future<void> updateSubtask(Subtask subtask) async {
+    final db = await database;
+    await db.update(
+      'subtasks',
+      subtask.toMap(),
+      where: 'id = ?',
+      whereArgs: [subtask.id],
+    );
+  }
+
+  Future<void> deleteSubtask(String id) async {
+    final db = await database;
+    await db.delete('subtasks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> reorderSubtasks(List<Subtask> subtasks) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < subtasks.length; i++) {
+      batch.update(
+        'subtasks',
+        {'sortOrder': i},
+        where: 'id = ?',
+        whereArgs: [subtasks[i].id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  // Pomodoro session operations
+  Future<void> savePomodoroSession(int todoId, DateTime startedAt, int durationMinutes, bool completed) async {
+    final db = await database;
+    await db.insert('pomodoro_sessions', {
+      'todoId': todoId,
+      'startedAt': startedAt.millisecondsSinceEpoch,
+      'durationMinutes': durationMinutes,
+      'completed': completed ? 1 : 0,
+    });
+  }
+
+  Future<int> getPomodoroCount(int todoId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM pomodoro_sessions WHERE todoId = ? AND completed = 1',
+      [todoId],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<int> getPomodoroMinutes(int todoId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COALESCE(SUM(durationMinutes), 0) as total FROM pomodoro_sessions WHERE todoId = ? AND completed = 1',
+      [todoId],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
   }
 
   Future<int> insertCategory(TodoCategory category) async {

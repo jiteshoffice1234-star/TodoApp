@@ -1,11 +1,15 @@
 import 'package:flutter/foundation.dart';
 import '../data/models/todo.dart';
 import '../data/models/category.dart';
+import '../data/models/subtask.dart';
+import '../data/models/recurring_config.dart';
 import '../data/repositories/todo_repository.dart';
 import '../data/repositories/category_repository.dart';
+import '../core/database/database_helper.dart';
+import '../core/services/notification_service.dart';
 
 enum TodoFilter { all, pending, done }
-enum TodoSort { dateCreated, dateUpdated, dueDate, priority, alphabetical }
+enum TodoSort { dateCreated, dateUpdated, dueDate, priority, alphabetical, sortOrder }
 enum ViewMode { list, grid }
 
 class TodoProvider extends ChangeNotifier {
@@ -15,11 +19,18 @@ class TodoProvider extends ChangeNotifier {
   List<Todo> _todos = [];
   List<TodoCategory> _categories = [];
   TodoFilter _filter = TodoFilter.all;
-  TodoSort _sort = TodoSort.dateCreated;
+  TodoSort _sort = TodoSort.sortOrder;
   ViewMode _viewMode = ViewMode.list;
   String _searchQuery = '';
   String _selectedTag = '';
   bool _isLoading = false;
+  
+  // Multi-select
+  bool _isMultiSelectMode = false;
+  final Set<int> _selectedTodoIds = {};
+  
+  // Calendar
+  DateTime _selectedCalendarDate = DateTime.now();
 
   List<Todo> get todos => _filteredTodos;
   List<TodoCategory> get categories => _categories;
@@ -29,6 +40,9 @@ class TodoProvider extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   String get selectedTag => _selectedTag;
   bool get isLoading => _isLoading;
+  bool get isMultiSelectMode => _isMultiSelectMode;
+  Set<int> get selectedTodoIds => _selectedTodoIds;
+  DateTime get selectedCalendarDate => _selectedCalendarDate;
 
   int get pendingCount => _todos.where((t) => !t.isDone).length;
   int get doneCount => _todos.where((t) => t.isDone).length;
@@ -89,6 +103,15 @@ class TodoProvider extends ChangeNotifier {
     return streak;
   }
 
+  List<Todo> getTodosForDate(DateTime date) {
+    return _todos.where((t) {
+      if (t.dueDate == null) return false;
+      return t.dueDate!.year == date.year &&
+          t.dueDate!.month == date.month &&
+          t.dueDate!.day == date.day;
+    }).toList();
+  }
+
   List<Todo> get _filteredTodos {
     List<Todo> result = List.from(_todos);
 
@@ -136,10 +159,12 @@ class TodoProvider extends ChangeNotifier {
         });
       case TodoSort.alphabetical:
         result.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      case TodoSort.sortOrder:
+        result.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     }
 
     // Always show incomplete first unless filtering by done
-    if (_filter != TodoFilter.done) {
+    if (_filter != TodoFilter.done && _sort != TodoSort.sortOrder) {
       result.sort((a, b) {
         if (a.isDone != b.isDone) return a.isDone ? 1 : -1;
         return 0;
@@ -183,6 +208,105 @@ class TodoProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedCalendarDate(DateTime date) {
+    _selectedCalendarDate = date;
+    notifyListeners();
+  }
+
+  // Multi-select
+  void toggleMultiSelectMode() {
+    _isMultiSelectMode = !_isMultiSelectMode;
+    if (!_isMultiSelectMode) {
+      _selectedTodoIds.clear();
+    }
+    notifyListeners();
+  }
+
+  void toggleTodoSelection(int id) {
+    if (_selectedTodoIds.contains(id)) {
+      _selectedTodoIds.remove(id);
+    } else {
+      _selectedTodoIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void selectAllVisible() {
+    _selectedTodoIds.addAll(_filteredTodos.where((t) => t.id != null).map((t) => t.id!));
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selectedTodoIds.clear();
+    notifyListeners();
+  }
+
+  Future<void> deleteSelected() async {
+    for (final id in _selectedTodoIds) {
+      await _todoRepo.delete(id);
+    }
+    _todos.removeWhere((t) => t.id != null && _selectedTodoIds.contains(t.id));
+    _selectedTodoIds.clear();
+    _isMultiSelectMode = false;
+    notifyListeners();
+  }
+
+  Future<void> completeSelected() async {
+    for (final id in _selectedTodoIds) {
+      final index = _todos.indexWhere((t) => t.id == id);
+      if (index != -1) {
+        final updated = _todos[index].copyWith(isDone: true);
+        await _todoRepo.update(updated);
+        _todos[index] = updated;
+      }
+    }
+    _selectedTodoIds.clear();
+    _isMultiSelectMode = false;
+    notifyListeners();
+  }
+
+  Future<void> setCategoryForSelected(int? categoryId) async {
+    for (final id in _selectedTodoIds) {
+      final index = _todos.indexWhere((t) => t.id == id);
+      if (index != -1) {
+        final updated = _todos[index].copyWith(categoryId: categoryId);
+        await _todoRepo.update(updated);
+        _todos[index] = updated;
+      }
+    }
+    _selectedTodoIds.clear();
+    _isMultiSelectMode = false;
+    notifyListeners();
+  }
+
+  // Drag-drop reorder
+  Future<void> reorderTodos(int oldIndex, int newIndex) async {
+    if (oldIndex < newIndex) newIndex -= 1;
+    final item = _filteredTodos.removeAt(oldIndex);
+    _filteredTodos.insert(newIndex, item);
+
+    for (var i = 0; i < _todos.length; i++) {
+      _todos[i] = _todos[i].copyWith(sortOrder: i);
+    }
+
+    await _updateSortOrders();
+    notifyListeners();
+  }
+
+  Future<void> _updateSortOrders() async {
+    final db = DatabaseHelper.instance;
+    final batch = (await db.database).batch();
+    for (var i = 0; i < _todos.length; i++) {
+      batch.update(
+        'todos',
+        {'sortOrder': i},
+        where: 'id = ?',
+        whereArgs: [_todos[i].id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
   Future<void> toggleTodo(int id) async {
     final index = _todos.indexWhere((t) => t.id == id);
     if (index == -1) return;
@@ -190,6 +314,23 @@ class TodoProvider extends ChangeNotifier {
     final updated = todo.copyWith(isDone: !todo.isDone);
     await _todoRepo.update(updated);
     _todos[index] = updated;
+    
+    // Handle recurring
+    if (updated.isDone && updated.recurringConfig.type != RecurrenceType.none) {
+      final nextDate = updated.recurringConfig.getNextOccurrence(
+        updated.dueDate ?? DateTime.now(),
+      );
+      if (nextDate != null) {
+        final newTodo = updated.copyWith(
+          isDone: false,
+          dueDate: nextDate,
+          nextDueDate: null,
+          subtasks: updated.subtasks.map((s) => s.copyWith(isDone: false)).toList(),
+        );
+        await _todoRepo.insert(newTodo);
+      }
+    }
+    
     notifyListeners();
   }
 
@@ -197,16 +338,25 @@ class TodoProvider extends ChangeNotifier {
     if (todo.id == null) {
       final id = await _todoRepo.insert(todo);
       _todos.add(todo.copyWith(id: id));
+      if (todo.hasReminder) {
+        await NotificationService.instance.scheduleReminder(todo.copyWith(id: id));
+      }
     } else {
       await _todoRepo.update(todo);
       final index = _todos.indexWhere((t) => t.id == todo.id);
       if (index != -1) _todos[index] = todo;
+      if (todo.hasReminder) {
+        await NotificationService.instance.scheduleReminder(todo);
+      } else {
+        await NotificationService.instance.cancelReminder(todo.id!);
+      }
     }
     notifyListeners();
   }
 
   Future<void> deleteTodo(int id) async {
     await _todoRepo.delete(id);
+    await NotificationService.instance.cancelReminder(id);
     _todos.removeWhere((t) => t.id == id);
     notifyListeners();
   }
@@ -214,7 +364,10 @@ class TodoProvider extends ChangeNotifier {
   Future<void> deleteCompleted() async {
     final completed = _todos.where((t) => t.isDone).toList();
     for (final todo in completed) {
-      if (todo.id != null) await _todoRepo.delete(todo.id!);
+      if (todo.id != null) {
+        await _todoRepo.delete(todo.id!);
+        await NotificationService.instance.cancelReminder(todo.id!);
+      }
     }
     _todos.removeWhere((t) => t.isDone);
     notifyListeners();
@@ -251,6 +404,47 @@ class TodoProvider extends ChangeNotifier {
       return _categories.firstWhere((c) => c.id == id);
     } catch (_) {
       return null;
+    }
+  }
+
+  // Subtask operations
+  Future<void> addSubtask(int todoId, String title) async {
+    final subtask = Subtask(title: title, todoId: todoId);
+    await DatabaseHelper.instance.insertSubtask(subtask, todoId);
+    final index = _todos.indexWhere((t) => t.id == todoId);
+    if (index != -1) {
+      final updatedSubtasks = List<Subtask>.from(_todos[index].subtasks)..add(subtask);
+      _todos[index] = _todos[index].copyWith(subtasks: updatedSubtasks);
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleSubtask(int todoId, String subtaskId) async {
+    final todoIndex = _todos.indexWhere((t) => t.id == todoId);
+    if (todoIndex == -1) return;
+    
+    final todo = _todos[todoIndex];
+    final subtaskIndex = todo.subtasks.indexWhere((s) => s.id == subtaskId);
+    if (subtaskIndex == -1) return;
+    
+    final updatedSubtask = todo.subtasks[subtaskIndex].copyWith(
+      isDone: !todo.subtasks[subtaskIndex].isDone,
+    );
+    await DatabaseHelper.instance.updateSubtask(updatedSubtask);
+    
+    final updatedSubtasks = List<Subtask>.from(todo.subtasks);
+    updatedSubtasks[subtaskIndex] = updatedSubtask;
+    _todos[todoIndex] = todo.copyWith(subtasks: updatedSubtasks);
+    notifyListeners();
+  }
+
+  Future<void> deleteSubtask(int todoId, String subtaskId) async {
+    await DatabaseHelper.instance.deleteSubtask(subtaskId);
+    final todoIndex = _todos.indexWhere((t) => t.id == todoId);
+    if (todoIndex != -1) {
+      final updatedSubtasks = _todos[todoIndex].subtasks.where((s) => s.id != subtaskId).toList();
+      _todos[todoIndex] = _todos[todoIndex].copyWith(subtasks: updatedSubtasks);
+      notifyListeners();
     }
   }
 

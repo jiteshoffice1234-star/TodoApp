@@ -13,7 +13,7 @@ function loadData() {
   } catch (e) {
     console.error('Error loading data:', e);
   }
-  return { todos: [], tags: [], nextTodoId: 1, nextTagId: 1, deletedTodos: [] };
+  return { todos: [], tags: [], nextTodoId: 1, nextTagId: 1, deletedTodos: [], settings: {} };
 }
 
 function saveData(data) {
@@ -33,21 +33,88 @@ function checkDueDates(data) {
   for (const todo of data.todos) {
     if (todo.completed || !todo.dueDate) continue;
     if (todo.dueDate === todayStr) {
-      notifications.push(`📅 "${todo.title}" is due today!`);
+      notifications.push(`"${todo.title}" is due today!`);
     } else if (todo.dueDate < todayStr) {
       const overdue = Math.floor((today.getTime() - new Date(todo.dueDate).getTime()) / 86400000);
-      notifications.push(`⚠️ "${todo.title}" is ${overdue} day${overdue > 1 ? 's' : ''} overdue!`);
+      notifications.push(`"${todo.title}" is ${overdue} day${overdue > 1 ? 's' : ''} overdue!`);
+    }
+    // Check reminders
+    if (todo.reminderAt && todo.reminderAt <= Date.now() && !todo.reminderFired) {
+      notifications.push(`Reminder: "${todo.title}"`);
+      todo.reminderFired = true;
     }
   }
   return notifications;
 }
 
+// Process recurring todos
+function processRecurring(data) {
+  const today = new Date().toISOString().split('T')[0];
+  const newTodos = [];
+
+  for (const todo of data.todos) {
+    if (!todo.completed || !todo.recurring || todo.recurring.type === 'none') continue;
+
+    const lastCompleted = todo.updatedAt || Date.now();
+    const nextDate = getNextRecurringDate(todo.recurring, todo.dueDate || today);
+
+    if (nextDate && !data.todos.some(t => t.recurringParentId === todo.id && t.dueDate === nextDate)) {
+      newTodos.push({
+        id: data.nextTodoId++,
+        title: todo.title,
+        description: todo.description,
+        completed: false,
+        priority: todo.priority,
+        dueDate: nextDate,
+        tagIds: [...(todo.tagIds || [])],
+        pinned: false,
+        subtasks: (todo.subtasks || []).map(s => ({ ...s, done: false })),
+        recurring: { ...todo.recurring },
+        recurringParentId: todo.id,
+        reminderAt: null,
+        reminderFired: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+  }
+  data.todos.push(...newTodos);
+  return newTodos.length;
+}
+
+function getNextRecurringDate(recurring, baseDate) {
+  if (!recurring || recurring.type === 'none') return null;
+  const base = new Date(baseDate + 'T00:00:00');
+  const interval = recurring.interval || 1;
+
+  switch (recurring.type) {
+    case 'daily':
+      base.setDate(base.getDate() + interval);
+      break;
+    case 'weekly':
+      base.setDate(base.getDate() + 7 * interval);
+      break;
+    case 'monthly':
+      base.setMonth(base.getMonth() + interval);
+      break;
+    case 'yearly':
+      base.setFullYear(base.getFullYear() + interval);
+      break;
+    default:
+      return null;
+  }
+
+  if (recurring.endDate && base > new Date(recurring.endDate)) return null;
+  return base.toISOString().split('T')[0];
+}
+
 let mainWindow;
+let pomodoroTimers = {};
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 700,
+    width: 900,
+    height: 750,
     minWidth: 500,
     minHeight: 400,
     frame: true,
@@ -65,6 +132,8 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     const data = loadData();
+    processRecurring(data);
+    saveData(data);
     const notices = checkDueDates(data);
     for (const msg of notices) {
       new Notification({ title: 'Todo App', body: msg }).show();
@@ -83,6 +152,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// IPC Handlers
 ipcMain.handle('get-data', () => loadData());
 ipcMain.handle('save-data', (_, data) => { saveData(data); return true; });
 
@@ -99,3 +169,5 @@ ipcMain.handle('confirm-delete', (_, message) => {
 ipcMain.handle('send-notification', (_, title, body) => {
   new Notification({ title, body }).show();
 });
+
+ipcMain.handle('get-data-path', () => DATA_DIR);

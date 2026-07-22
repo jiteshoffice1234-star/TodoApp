@@ -12,46 +12,25 @@
   <div id="app">
     <header id="appHeader">
       <div class="header-left">
-        <h1>Todo App</h1>
+        <h1 id="headerTitle">Todo App</h1>
         <span id="todoCount" class="todo-count">0</span>
       </div>
-      <div class="header-actions">
-        <button id="advancedSearchToggle" class="icon-btn" title="Advanced Search">🔍</button>
+      <div class="header-actions" id="headerActions">
+        <button id="multiSelectBtn" class="icon-btn" title="Multi-select">☑️</button>
+        <button id="viewToggle" class="icon-btn" title="Toggle view">📅</button>
+        <button id="pomodoroBtn" class="icon-btn" title="Pomodoro Timer">🍅</button>
         <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
         <button id="manageTags" class="icon-btn" title="Tags">🏷️</button>
         <button id="themeToggle" class="icon-btn" title="Toggle theme">🌙</button>
       </div>
     </header>
 
-    <!-- Advanced Search Panel -->
-    <div id="advancedSearch" class="advanced-search hidden">
-      <div class="adv-search-row">
-        <div>
-          <label>From</label>
-          <input type="date" id="advDateFrom" />
-        </div>
-        <div>
-          <label>To</label>
-          <input type="date" id="advDateTo" />
-        </div>
-      </div>
-      <div class="adv-search-row">
-        <div>
-          <label>Priority</label>
-          <div class="adv-priority-filters">
-            <label class="adv-check"><input type="checkbox" data-pri="high" checked /> High</label>
-            <label class="adv-check"><input type="checkbox" data-pri="medium" checked /> Medium</label>
-            <label class="adv-check"><input type="checkbox" data-pri="low" checked /> Low</label>
-          </div>
-        </div>
-        <div>
-          <label>Tags</label>
-          <div id="advTagFilters" class="adv-tag-filters"></div>
-        </div>
-      </div>
-      <div class="adv-search-actions">
-        <button id="clearAdvancedSearch" class="text-btn">Clear all filters</button>
-      </div>
+    <!-- Multi-select toolbar -->
+    <div id="multiSelectBar" class="multi-select-bar hidden">
+      <span id="selectedCount">0 selected</span>
+      <button class="ms-btn" onclick="bulkComplete()">✅ Complete</button>
+      <button class="ms-btn" onclick="bulkDelete()">🗑️ Delete</button>
+      <button class="ms-btn" onclick="bulkClearSelection()">✕ Cancel</button>
     </div>
 
     <!-- Search -->
@@ -80,6 +59,20 @@
     <!-- Todo List -->
     <div id="todoList" class="todo-list"></div>
 
+    <!-- Calendar View -->
+    <div id="calendarView" class="calendar-view hidden">
+      <div class="cal-header">
+        <button class="cal-nav" onclick="calPrev()">◀</button>
+        <span id="calTitle" class="cal-title"></span>
+        <button class="cal-nav" onclick="calNext()">▶</button>
+      </div>
+      <div class="cal-weekdays">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+      <div id="calGrid" class="cal-grid"></div>
+      <div id="calTodos" class="cal-todos"></div>
+    </div>
+
     <!-- Empty State -->
     <div id="emptyState" class="empty-state hidden">
       <div class="empty-icon">📝</div>
@@ -88,6 +81,33 @@
     </div>
 
     <button id="addBtn" class="fab" title="New Todo (N)">+</button>
+  </div>
+
+  <!-- Pomodoro Modal -->
+  <div id="pomodoroModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content pomodoro-content">
+      <div class="modal-header">
+        <h2>🍅 Pomodoro Timer</h2>
+        <button class="icon-btn" onclick="closePomodoro()">✕</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <div class="pomo-ring">
+          <svg viewBox="0 0 200 200">
+            <circle class="pomo-bg" cx="100" cy="100" r="90"/>
+            <circle id="pomoProgress" class="pomo-progress" cx="100" cy="100" r="90"/>
+          </svg>
+          <div class="pomo-time" id="pomoTime">25:00</div>
+          <div class="pomo-label" id="pomoLabel">Focus Time</div>
+        </div>
+        <div class="pomo-sessions" id="pomoSessions"></div>
+        <div class="pomo-controls">
+          <button class="pomo-ctrl" onclick="pomoReset()" title="Reset">↺</button>
+          <button id="pomoPlayBtn" class="pomo-play" onclick="pomoToggle()">▶</button>
+          <button class="pomo-ctrl" onclick="pomoSkip()" title="Skip">⏭</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Add/Edit Modal -->
@@ -103,7 +123,15 @@
         <input type="text" id="todoTitle" placeholder="What needs to be done?" />
 
         <label>Description</label>
-        <textarea id="todoDesc" placeholder="Add details..." rows="3"></textarea>
+        <div class="rich-editor">
+          <div class="rich-toolbar">
+            <button class="rich-btn" onclick="richBold()" title="Bold"><b>B</b></button>
+            <button class="rich-btn" onclick="richItalic()" title="Italic"><i>I</i></button>
+            <button class="rich-btn" onclick="richUnderline()" title="Underline"><u>U</u></button>
+            <button class="rich-btn" onclick="richList()" title="Bullet List">•≡</button>
+          </div>
+          <textarea id="todoDesc" placeholder="Add details..." rows="3"></textarea>
+        </div>
 
         <div class="modal-row">
           <div>
@@ -128,6 +156,40 @@
 
         <label>Tags</label>
         <div id="tagSelector" class="tag-selector"></div>
+
+        <label>📋 Subtasks</label>
+        <div id="subtaskSection" class="subtask-section">
+          <div id="subtaskList" class="subtask-list"></div>
+          <div class="subtask-add">
+            <input type="text" id="subtaskInput" placeholder="Add a subtask..." onkeydown="if(event.key==='Enter')addSubtask()" />
+            <button class="btn-primary" onclick="addSubtask()">+</button>
+          </div>
+        </div>
+
+        <div class="modal-row">
+          <div>
+            <label>🔄 Recurring</label>
+            <select id="todoRecurring">
+              <option value="none">None</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div id="recurringIntervalWrap" class="hidden">
+            <label>Every</label>
+            <input type="number" id="recurringInterval" value="1" min="1" max="365" />
+          </div>
+        </div>
+
+        <label>⏰ Reminder</label>
+        <label class="switch">
+          <input type="checkbox" id="todoReminder" />
+          <span class="slider"></span>
+          <span class="switch-label" id="reminderLabel">No reminder set</span>
+        </label>
+        <input type="datetime-local" id="todoReminderTime" class="hidden" />
 
         <label>📌 Pin to top</label>
         <label class="switch">

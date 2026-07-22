@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/todo.dart';
 import '../../data/models/category.dart';
+import '../../data/models/recurring_config.dart';
 import 'priority_badge.dart';
 
 class GridTodoCard extends StatelessWidget {
@@ -60,14 +61,26 @@ class GridTodoCard extends StatelessWidget {
                         ),
                       ),
                     const Spacer(),
+                    if (todo.recurringConfig.type != RecurrenceType.none)
+                      Icon(
+                        Icons.repeat,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                    if (todo.hasReminder)
+                      Icon(
+                        Icons.notifications_active,
+                        size: 14,
+                        color: theme.colorScheme.tertiary,
+                      ),
                     Checkbox(
                       value: todo.isDone,
                       onChanged: (_) => onToggle(),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ],
                 ),
@@ -99,6 +112,34 @@ class GridTodoCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 8),
+                // Subtask progress
+                if (todo.hasSubtasks) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 12,
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${todo.subtasks.where((s) => s.isDone).length}/${todo.subtasks.length}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 10,
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(
+                    value: todo.progress,
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                    minHeight: 3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Row(
                   children: [
                     PriorityBadge(priority: todo.priority),
