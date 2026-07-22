@@ -11,7 +11,8 @@ class QuickAddBar extends StatefulWidget {
   State<QuickAddBar> createState() => _QuickAddBarState();
 }
 
-class _QuickAddBarState extends State<QuickAddBar> with SingleTickerProviderStateMixin {
+class _QuickAddBarState extends State<QuickAddBar>
+    with SingleTickerProviderStateMixin {
   late TextEditingController _ctrl;
   late AnimationController _animCtrl;
   bool _isExpanded = false;
@@ -22,7 +23,7 @@ class _QuickAddBarState extends State<QuickAddBar> with SingleTickerProviderStat
     _ctrl = TextEditingController();
     _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 350),
     );
   }
 
@@ -36,23 +37,20 @@ class _QuickAddBarState extends State<QuickAddBar> with SingleTickerProviderStat
   void _submit() {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
-
     final parsed = NaturalLanguageParser.parse(text);
     if (parsed.title.isEmpty) return;
-
-    final provider = context.read<TodoProvider>();
-    provider.addFromQuickAdd(parsed);
-
+    context.read<TodoProvider>().addFromQuickAdd(parsed);
     _ctrl.clear();
     _collapse();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Added: ${parsed.title}'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added: ${parsed.title}'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.2),
+      );
+    }
   }
 
   void _expand() {
@@ -61,8 +59,9 @@ class _QuickAddBarState extends State<QuickAddBar> with SingleTickerProviderStat
   }
 
   void _collapse() {
-    _animCtrl.reverse();
-    setState(() => _isExpanded = false);
+    _animCtrl.reverse().then((_) {
+      if (mounted) setState(() => _isExpanded = false);
+    });
   }
 
   @override
@@ -74,7 +73,18 @@ class _QuickAddBarState extends State<QuickAddBar> with SingleTickerProviderStat
       child: Animate(
         controller: _animCtrl,
         effects: [
-          ShakeEffect(duration: 300.ms, hz: 1),
+          SlideEffect(
+            begin: const Offset(0, -0.15),
+            end: Offset.zero,
+            curve: Curves.easeOutCubic,
+            duration: 350.ms,
+          ),
+          FadeEffect(
+            begin: 0.4,
+            end: 1.0,
+            curve: Curves.easeOut,
+            duration: 350.ms,
+          ),
         ],
         child: Container(
           decoration: BoxDecoration(
@@ -103,7 +113,7 @@ class _QuickAddBarState extends State<QuickAddBar> with SingleTickerProviderStat
             Icon(Icons.bolt, size: 18, color: theme.colorScheme.primary),
             const SizedBox(width: 12),
             Text(
-              'Quick add — e.g. "Buy milk tomorrow 3pm high #groceries"',
+              'Quick add \u2014 e.g. "Buy milk tomorrow 3pm high #groceries"',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.5),
               ),
@@ -129,7 +139,8 @@ class _QuickAddBarState extends State<QuickAddBar> with SingleTickerProviderStat
               controller: _ctrl,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'e.g. "Buy milk tomorrow 3pm high #groceries"',
+                hintText:
+                    'e.g. "Buy milk tomorrow 3pm high #groceries"',
                 hintStyle: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withOpacity(0.4),
                 ),

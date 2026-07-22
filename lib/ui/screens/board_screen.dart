@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../data/models/todo.dart';
 import '../../data/models/category.dart';
 import '../../data/models/recurring_config.dart';
@@ -89,55 +90,86 @@ class _BoardScreenState extends State<BoardScreen> {
       },
       builder: (context, candidateData, rejectedData) {
         final isHover = _dragTargetCategory == cat?.id;
-        return Container(
-          width: 260,
-          margin: const EdgeInsets.only(right: 12),
-          decoration: BoxDecoration(
-            color: isHover ? bgColor.withOpacity(0.3) : bgColor,
-            borderRadius: BorderRadius.circular(16),
-            border: isHover ? Border.all(color: catColor.withOpacity(0.6), width: 2) : null,
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 10, height: 10,
-                      decoration: BoxDecoration(color: catColor, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(label, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    Text('${col.todos.length}', style: theme.textTheme.bodySmall),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: col.todos.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Text('Drop todos here', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.3))),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(8),
-                        itemCount: col.todos.length,
-                        itemBuilder: (context, index) => _buildCard(col.todos[index], provider, theme),
+        return Animate(
+          effects: [
+            SlideEffect(
+              begin: const Offset(0, 0.08),
+              end: Offset.zero,
+              curve: Curves.easeOutCubic,
+              duration: 400.ms,
+            ),
+            FadeEffect(
+              begin: 0.0,
+              end: 1.0,
+              curve: Curves.easeOut,
+              duration: 400.ms,
+            ),
+          ],
+          child: Container(
+            width: 260,
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: isHover ? bgColor.withOpacity(0.3) : bgColor,
+              borderRadius: BorderRadius.circular(16),
+              border: isHover ? Border.all(color: catColor.withOpacity(0.6), width: 2) : null,
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10, height: 10,
+                        decoration: BoxDecoration(color: catColor, shape: BoxShape.circle),
                       ),
-              ),
-            ],
+                      const SizedBox(width: 8),
+                      Text(label, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                      const Spacer(),
+                      Text('${col.todos.length}', style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: col.todos.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text('Drop todos here', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.3))),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: col.todos.length,
+                          itemBuilder: (context, index) => _buildCard(col.todos[index], index, provider, theme),
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildCard(Todo todo, TodoProvider provider, ThemeData theme) {
-    return LongPressDraggable<int>(
+  Widget _buildCard(Todo todo, int index, TodoProvider provider, ThemeData theme) {
+    return Animate(
+      effects: [
+        SlideEffect(
+          begin: const Offset(0, 0.1),
+          end: Offset.zero,
+          curve: Curves.easeOutCubic,
+          duration: (300 + index * 50).ms,
+        ),
+        FadeEffect(
+          begin: 0.0,
+          end: 1.0,
+          curve: Curves.easeOut,
+          duration: (300 + index * 50).ms,
+        ),
+      ],
+      child: LongPressDraggable<int>(
       data: todo.id!,
       feedback: Material(
         elevation: 8,
@@ -159,6 +191,7 @@ class _BoardScreenState extends State<BoardScreen> {
       onDragStarted: () => setState(() => _draggedTodoId = todo.id),
       onDragEnd: (_) => setState(() => _draggedTodoId = null),
       child: _cardContent(todo, provider, theme),
+    ),
     );
   }
 
