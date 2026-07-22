@@ -29,7 +29,7 @@ class DatabaseHelper {
 
   Future<void> _createDB(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE categories (
+      CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         color TEXT NOT NULL DEFAULT '#2196F3',
@@ -37,7 +37,7 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('''
-      CREATE TABLE todos (
+      CREATE TABLE IF NOT EXISTS todos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         description TEXT DEFAULT '',
@@ -63,7 +63,7 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('''
-      CREATE TABLE subtasks (
+      CREATE TABLE IF NOT EXISTS subtasks (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         isDone INTEGER NOT NULL DEFAULT 0,
@@ -73,7 +73,7 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('''
-      CREATE TABLE pomodoro_sessions (
+      CREATE TABLE IF NOT EXISTS pomodoro_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         todoId INTEGER,
         startedAt INTEGER NOT NULL,
@@ -102,7 +102,7 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE todos ADD COLUMN hasReminder INTEGER DEFAULT 0');
       await db.execute('ALTER TABLE todos ADD COLUMN sortOrder INTEGER DEFAULT 0');
       await db.execute('''
-        CREATE TABLE subtasks (
+        CREATE TABLE IF NOT EXISTS subtasks (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           isDone INTEGER NOT NULL DEFAULT 0,
@@ -112,7 +112,7 @@ class DatabaseHelper {
         )
       ''');
       await db.execute('''
-        CREATE TABLE pomodoro_sessions (
+        CREATE TABLE IF NOT EXISTS pomodoro_sessions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           todoId INTEGER,
           startedAt INTEGER NOT NULL,

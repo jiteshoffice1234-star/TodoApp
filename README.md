@@ -1,6 +1,6 @@
 <div align="center">
   <h1>📋 Todo App</h1>
-  <p><strong>A full-featured cross-platform Todo application built with Flutter & Electron</strong></p>
+  <p><strong>A feature-rich cross-platform Todo application built with Flutter & Electron</strong></p>
   <p>
     <img src="https://img.shields.io/badge/Flutter-3.44+-02569B?logo=flutter&logoColor=white" alt="Flutter"/>
     <img src="https://img.shields.io/badge/Dart-3.12+-0175C2?logo=dart&logoColor=white" alt="Dart"/>
@@ -22,12 +22,13 @@
 | Create / Edit / Delete todos | ✅ | ✅ |
 | Due dates with date picker | ✅ | ✅ |
 | Priority levels (High / Medium / Low) | ✅ | ✅ |
-| Rich text descriptions | ✅ | ✅ |
 | Tags for organization | ✅ | ✅ |
 | Categories with custom colors | ✅ | ❌ (uses tags) |
 | Subtasks with progress tracking | ✅ | ✅ |
 | Drag & drop reordering | ✅ | ✅ |
 | Pin to top | ❌ | ✅ |
+| Rich text descriptions (bold/italic/lists) | ❌ | ✅ |
+| Plain multiline descriptions | ✅ | ✅ |
 
 ### 🔄 Recurring Tasks
 - **Daily** — repeats every N days
@@ -40,28 +41,29 @@
 - Per-task reminder with custom date/time
 - Local push notifications via `flutter_local_notifications`
 - Due date checking on app startup
-- Desktop notifications (Electron)
+- Desktop notifications (Electron native)
 
 ### 🍅 Pomodoro Timer
 - **Work sessions** (25 min default)
 - **Short breaks** (5 min)
 - **Long breaks** (15 min, after 4 sessions)
-- Session counter
-- Auto-cycles through work → break loops
-- Persistent timer state across app restarts
+- Session counter with dot indicator
+- Manual start/stop — no auto-loop (user chooses next session)
 
 ### 📅 Calendar View
 - Monthly calendar via `table_calendar`
-- Color-coded dots for tasks with due dates
+- Event dots for tasks with due dates
 - Tap a date to see that day's tasks
 - Navigate between months
 - Jump to today
 
 ### 📊 Statistics & Charts
-- **Completion rate** over the last 7 days (bar chart)
-- **Priority distribution** (pie chart)
 - **Current streak** — consecutive days with completed tasks
-- **Total completions** — lifetime count
+- **Completion pie chart** — done vs pending
+- **Category distribution** — pie chart by category
+- **Subtask progress** — completion ratio
+- **Recurring task summary** — count by recurrence type
+- **Quick stats** — total, done, pending counts
 - Built with `fl_chart`
 
 ### 🎨 Customization
@@ -72,24 +74,22 @@
 - Grid and list view toggle
 
 ### 💾 Backup & Restore
-- **JSON export** — full backup of all todos, categories, subtasks
+- **JSON export** — full backup with all todos, categories, subtasks
 - **CSV export** — spreadsheets-compatible task export
-- **Import** JSON backup files
-- **Share** backups via system share sheet (`share_plus`)
+- **Import** — restore from JSON backup files
+- **Share** — share backups via system share sheet (`share_plus`)
 - Auto-generated filenames with date stamps
 
 ### 🔍 Filtering & Sorting
-- **Search** by title
-- **Filter** by: All, Today, Priority, Category, Tags, Done/Pending
-- **Sort** by: Due date, Priority, Title, Created date, Custom (drag order)
-- Multi-select for batch operations
+- **Search** by title, description, or tags
+- **Filter** by: All, Pending, Done
+- **Sort** by: Due date, Priority, Title, Created date, Updated date, Custom (drag order)
+- Tag-specific filtering
+- Multi-select for batch operations (complete, delete, set category)
 
 ### 📱 Additional
-- Android home screen widget (`home_widget`)
-- Voice input button (placeholder)
-- Image attachment support (`image_picker`)
-
----
+- Voice input button (placeholder — no microphone integration yet)
+- Android home screen widget (`home_widget` — experimental, requires platform testing)
 
 ---
 
@@ -153,7 +153,7 @@ todos.db (SQLite database)
 |--------|------|-------------|
 | `id` | INTEGER PK | Auto-increment |
 | `title` | TEXT | Task title |
-| `description` | TEXT | Rich text description |
+| `description` | TEXT | Plain text description |
 | `priority` | TEXT | high / medium / low |
 | `dueDate` | INTEGER | Epoch ms |
 | `categoryId` | INTEGER FK | References categories |
@@ -179,7 +179,7 @@ todos.db (SQLite database)
 | `id` | INTEGER PK | Auto-increment |
 | `name` | TEXT | Category name |
 | `color` | TEXT | Hex color |
-| `customColors` | TEXT | JSON array of hex colors |
+| `customColors` | TEXT | Comma-separated hex colors |
 
 ### `subtasks` table
 | Column | Type | Description |
@@ -282,7 +282,7 @@ flutter test
 flutter test --coverage
 ```
 
-> ⚠️ **Note:** Current test coverage is limited to model serialization tests. The widget test in `test/widget_test.dart` references an old `MyApp` class and will fail — it needs to be updated.
+> ⚠️ **Note:** Only 3 model serialization tests exist. The widget test at `test/widget_test.dart` is outdated (references a removed `MyApp` class) and will fail.
 
 ---
 
@@ -301,8 +301,8 @@ flutter test --coverage
 | `flutter_local_notifications` | 18.0.1 | Push notifications |
 | `csv` | 5.1.0 | CSV export |
 | `share_plus` | 13.2.0 | File sharing |
-| `image_picker` | 1.1.2 | Photo attachments |
-| `home_widget` | 0.9.3 | Home screen widget |
+| `image_picker` | 1.1.2 | *(declared but unused)* |
+| `home_widget` | 0.9.3 | Android home widget |
 | `flutter_staggered_animations` | 1.1.1 | List animations |
 | `uuid` | 4.5.1 | Subtask IDs |
 | `timezone` | 0.10.0 | Timezone support |
@@ -330,7 +330,8 @@ TodoApp/
 │   │   │   ├── notification_service.dart # Local notifications
 │   │   │   └── widget_service.dart    # Home screen widget
 │   │   └── theme/
-│   │       └── app_theme.dart         # Light/dark themes, accent colors
+│   │       ├── app_theme.dart         # Light/dark themes, accent colors
+│   │       └── color_utils.dart       # Hex color parsing utility
 │   ├── data/
 │   │   ├── models/
 │   │   │   ├── todo.dart             # Todo model + serialization
@@ -380,18 +381,19 @@ TodoApp/
 
 ## 🔐 Known Issues & Limitations
 
-> See the full audit in [AUDIT.md](AUDIT.md) (or refer to [GitHub Issues](https://github.com/jiteshoffice1234-star/TodoApp/issues))
-
-| Issue | Severity | Details |
-|-------|:--------:|---------|
-| Drag-drop reorder broken | 🔴 High | `_filteredTodos.removeAt()` operates on a new list — reorder does nothing |
-| Pomodoro infinite loop | 🔴 High | Work → break cycle has no stop/quit button |
-| Widget test failing | 🟡 Medium | References old `MyApp` counter widget |
-| Notifications never init | 🟡 Medium | `_initNativeServices()` is empty |
-| No database indexes | 🟡 Medium | Frequent query columns unindexed |
-| No pagination | 🟢 Low | All todos loaded into memory at once |
-| Duplicate color parsers | 🟢 Low | `_hexToColor` duplicated across 5+ files |
-| No encryption | 🟢 Low | Plain SQLite / JSON storage |
+| Issue | Severity | Status |
+|-------|:--------:|--------|
+| Widget test references old `MyApp` class | 🟡 Medium | Needs update |
+| No database indexes on frequent query columns | 🟡 Medium | Performance impact for large datasets |
+| No pagination — all todos loaded into memory | 🟢 Low | Noticeable with 1000+ todos |
+| No data encryption (plain SQLite / JSON) | 🟢 Low | Local-only app, but no encryption at rest |
+| Renamed `_parseColor` utility — now shared via `color_utils.dart` | ✅ Fixed | |
+| `reorderTodos` now operates on `_todos` directly | ✅ Fixed | Drag-drop reorder now works |
+| Pomodoro no longer auto-cycles; has Stop button | ✅ Fixed | User controls session flow |
+| Notifications/widget services now initialized in `main.dart` | ✅ Fixed | |
+| `_parseColor` / `int.parse` — now error-safe | ✅ Fixed | |
+| CSP added to Electron HTML | ✅ Fixed | |
+| `CREATE TABLE IF NOT EXISTS` in migrations | ✅ Fixed | |
 
 ---
 

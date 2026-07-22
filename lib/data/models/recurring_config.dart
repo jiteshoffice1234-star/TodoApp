@@ -32,7 +32,7 @@ class RecurringConfig {
     return RecurringConfig(
       type: RecurrenceType.values[map['type'] as int? ?? 0],
       interval: map['interval'] as int? ?? 1,
-      daysOfWeek: (map['daysOfWeek'] as String?)?.split(',').where((d) => d.isNotEmpty).map(int.parse).toList() ?? [],
+      daysOfWeek: (map['daysOfWeek'] as String?)?.split(',').where((d) => d.isNotEmpty).map((d) => int.tryParse(d) ?? 0).toList() ?? [],
       dayOfMonth: map['dayOfMonth'] as int?,
       endDate: map['endDate'] != null ? DateTime.fromMillisecondsSinceEpoch(map['endDate'] as int) : null,
       hasEnd: (map['hasEnd'] as int? ?? 0) == 1,

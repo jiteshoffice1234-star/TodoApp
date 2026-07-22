@@ -5,6 +5,7 @@ import '../../data/models/todo.dart';
 import '../../data/models/subtask.dart';
 import '../../data/models/recurring_config.dart';
 import '../../providers/todo_provider.dart';
+import '../../core/theme/color_utils.dart';
 
 class AddEditTodoScreen extends StatefulWidget {
   final Todo? todo;
@@ -85,6 +86,7 @@ class _AddEditTodoScreenState extends State<AddEditTodoScreen> {
                 hintText: 'What needs to be done?',
               ),
               autofocus: true,
+              maxLength: 200,
               validator: (v) =>
                   v == null || v.trim().isEmpty ? 'Title is required' : null,
             ),
@@ -402,11 +404,7 @@ class _AddEditTodoScreenState extends State<AddEditTodoScreen> {
     }
   }
 
-  Color _parseColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
-  }
+  Color _parseColor(String hex) => parseHexColor(hex);
 
   void _addTag(String tag) {
     final trimmed = tag.trim();

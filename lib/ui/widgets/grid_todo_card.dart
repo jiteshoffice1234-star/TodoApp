@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../data/models/todo.dart';
 import '../../data/models/category.dart';
 import '../../data/models/recurring_config.dart';
+import '../../core/theme/color_utils.dart';
 import 'priority_badge.dart';
 
 class GridTodoCard extends StatelessWidget {
@@ -21,11 +22,7 @@ class GridTodoCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  Color _hexToColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
-  }
+  Color _hexToColor(String hex) => parseHexColor(hex);
 
   @override
   Widget build(BuildContext context) {

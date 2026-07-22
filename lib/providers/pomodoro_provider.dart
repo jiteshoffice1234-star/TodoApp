@@ -12,6 +12,7 @@ class PomodoroProvider extends ChangeNotifier {
   int _totalSeconds = workDuration * 60;
   bool _isRunning = false;
   bool _isBreak = false;
+  bool _isStopped = true;
   int _sessionCount = 0;
   int? _currentTodoId;
 
@@ -19,6 +20,7 @@ class PomodoroProvider extends ChangeNotifier {
   int get totalSeconds => _totalSeconds;
   bool get isRunning => _isRunning;
   bool get isBreak => _isBreak;
+  bool get isStopped => _isStopped;
   int get sessionCount => _sessionCount;
   int? get currentTodoId => _currentTodoId;
 
@@ -33,6 +35,7 @@ class PomodoroProvider extends ChangeNotifier {
   void startWork({int? todoId}) {
     _currentTodoId = todoId;
     _isBreak = false;
+    _isStopped = false;
     _totalSeconds = workDuration * 60;
     _remainingSeconds = _totalSeconds;
     _startTimer();
@@ -40,6 +43,7 @@ class PomodoroProvider extends ChangeNotifier {
 
   void startShortBreak() {
     _isBreak = true;
+    _isStopped = false;
     _totalSeconds = shortBreakDuration * 60;
     _remainingSeconds = _totalSeconds;
     _startTimer();
@@ -47,6 +51,7 @@ class PomodoroProvider extends ChangeNotifier {
 
   void startLongBreak() {
     _isBreak = true;
+    _isStopped = false;
     _totalSeconds = longBreakDuration * 60;
     _remainingSeconds = _totalSeconds;
     _startTimer();
@@ -86,6 +91,16 @@ class PomodoroProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void stop() {
+    _timer?.cancel();
+    _isRunning = false;
+    _isStopped = true;
+    _isBreak = false;
+    _remainingSeconds = workDuration * 60;
+    _totalSeconds = workDuration * 60;
+    notifyListeners();
+  }
+
   void skip() {
     _timer?.cancel();
     _isRunning = false;
@@ -101,14 +116,8 @@ class PomodoroProvider extends ChangeNotifier {
       if (_currentTodoId != null) {
         _saveSession();
       }
-      if (_sessionCount % 4 == 0) {
-        startLongBreak();
-      } else {
-        startShortBreak();
-      }
-    } else {
-      startWork(todoId: _currentTodoId);
     }
+    notifyListeners();
   }
 
   Future<void> _saveSession() async {

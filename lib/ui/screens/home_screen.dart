@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../data/models/todo.dart';
 import '../../providers/todo_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../core/theme/color_utils.dart';
 import '../widgets/todo_card.dart';
 import '../widgets/grid_todo_card.dart';
 import '../widgets/empty_state.dart';
@@ -691,9 +692,5 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Color _parseColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
-  }
+  Color _parseColor(String hex) => parseHexColor(hex);
 }

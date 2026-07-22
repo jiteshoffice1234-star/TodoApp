@@ -279,11 +279,10 @@ class TodoProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Drag-drop reorder
   Future<void> reorderTodos(int oldIndex, int newIndex) async {
     if (oldIndex < newIndex) newIndex -= 1;
-    final item = _filteredTodos.removeAt(oldIndex);
-    _filteredTodos.insert(newIndex, item);
+    final item = _todos.removeAt(oldIndex);
+    _todos.insert(newIndex, item);
 
     for (var i = 0; i < _todos.length; i++) {
       _todos[i] = _todos[i].copyWith(sortOrder: i);
@@ -294,14 +293,15 @@ class TodoProvider extends ChangeNotifier {
   }
 
   Future<void> _updateSortOrders() async {
+    final ids = _todos.map((t) => t.id).whereType<int>().toList();
     final db = DatabaseHelper.instance;
     final batch = (await db.database).batch();
-    for (var i = 0; i < _todos.length; i++) {
+    for (var i = 0; i < ids.length; i++) {
       batch.update(
         'todos',
         {'sortOrder': i},
         where: 'id = ?',
-        whereArgs: [_todos[i].id],
+        whereArgs: [ids[i]],
       );
     }
     await batch.commit(noResult: true);

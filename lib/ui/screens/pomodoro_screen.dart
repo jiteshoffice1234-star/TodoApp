@@ -126,6 +126,16 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
+                // Stop
+                IconButton(
+                  onPressed: pomodoro.stop,
+                  icon: const Icon(Icons.stop),
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.errorContainer,
+                    foregroundColor: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+                const SizedBox(width: 16),
                 // Skip
                 IconButton(
                   onPressed: pomodoro.skip,
@@ -138,7 +148,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
             ),
             const SizedBox(height: 40),
             // Quick start buttons
-            if (!pomodoro.isRunning && pomodoro.remainingSeconds == 25 * 60)
+            if (pomodoro.isStopped)
               Wrap(
                 spacing: 8,
                 children: [
