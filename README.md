@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="screenshot.png" alt="Todo App Banner" width="200"/>
   <h1>📋 Todo App</h1>
   <p><strong>A full-featured cross-platform Todo application built with Flutter & Electron</strong></p>
   <p>
@@ -91,14 +90,6 @@
 - Image attachment support (`image_picker`)
 
 ---
-
-## 🖼️ Screenshots
-
-| Home Screen | Add Todo | Calendar | Stats |
-|:-----------:|:--------:|:--------:|:-----:|
-| ![Home](screenshot.png) | — | — | — |
-
-*(Add your screenshots to the `screenshots/` directory and update the table)*
 
 ---
 
