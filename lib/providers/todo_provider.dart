@@ -420,7 +420,7 @@ class TodoProvider extends ChangeNotifier {
     );
     await _todoRepo.update(updated);
     _todos[index] = updated;
-    await NotificationService.instance.scheduleSnoozedReminder(
+    NotificationService.instance.scheduleSnoozedReminder(
       id, todo.title, todo.description, duration,
     );
     notifyListeners();

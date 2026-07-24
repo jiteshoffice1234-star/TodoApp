@@ -183,7 +183,7 @@ class _TodoCardContentState extends State<_TodoCardContent>
                           Expanded(
                             child: AnimatedDefaultTextStyle(
                               duration: 300.ms,
-                              style: theme.textTheme.titleSmall?.copyWith(
+                              style: (theme.textTheme.titleSmall ?? theme.textTheme.bodyLarge)!.copyWith(
                                 decoration: t.isDone
                                     ? TextDecoration.lineThrough
                                     : null,

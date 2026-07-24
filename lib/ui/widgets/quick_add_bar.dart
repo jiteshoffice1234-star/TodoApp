@@ -48,7 +48,7 @@ class _QuickAddBarState extends State<QuickAddBar>
           content: Text('Added: ${parsed.title}'),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
-        ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.2),
+        ),
       );
     }
   }

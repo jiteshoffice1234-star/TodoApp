@@ -119,7 +119,7 @@ class _GridTodoCardState extends State<GridTodoCard> {
                     Expanded(
                       child: AnimatedDefaultTextStyle(
                         duration: 300.ms,
-                        style: theme.textTheme.titleSmall?.copyWith(
+                        style: (theme.textTheme.titleSmall ?? theme.textTheme.bodyLarge)!.copyWith(
                           decoration: todo.isDone
                               ? TextDecoration.lineThrough
                               : null,

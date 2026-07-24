@@ -180,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   value: 'board',
                   child: Row(
                     children: [
-                      Icon(Icons.column),
+                      Icon(Icons.dashboard),
                       SizedBox(width: 8),
                       Text('Board'),
                     ],
