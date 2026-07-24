@@ -22,7 +22,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico"
+      "icon": "resources/icons/icon.ico"
     },
     "nsis": {
       "oneClick": false,

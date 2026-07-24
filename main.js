@@ -119,6 +119,7 @@ function createWindow() {
     minHeight: 400,
     frame: true,
     title: 'Todo App',
+    icon: path.join(__dirname, 'resources', 'icons', 'icon.png'),
     backgroundColor: '#1e1e1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
