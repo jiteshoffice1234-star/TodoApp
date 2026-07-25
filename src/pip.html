@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a1a; overflow: hidden; font-family: sans-serif; height: 100vh; display: flex; align-items: center; }
+#pipContent { display: inline-block; white-space: nowrap; animation: scroll 20s linear infinite; }
+#pipContent:hover { animation-play-state: paused; }
+.todo-item { display: inline-block; padding: 0 30px; font-weight: bold; font-size: 16px; color: #00ffcc; }
+@keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+</style></head>
+<body><div id="pipContent"></div>
+<script>function setContent(html){document.getElementById('pipContent').innerHTML=html;}</script></body>
+</html>

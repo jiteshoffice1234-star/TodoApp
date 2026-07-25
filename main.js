@@ -113,6 +113,7 @@ function getNextRecurringDate(recurring, baseDate) {
 }
 
 let mainWindow;
+let pipWindow = null;
 let pomodoroTimers = {};
 
 function createWindow() {
@@ -176,3 +177,29 @@ ipcMain.handle('send-notification', (_, title, body) => {
 });
 
 ipcMain.handle('get-data-path', () => DATA_DIR);
+
+// PiP window
+ipcMain.handle('pip:open', () => {
+  if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.focus(); return true; }
+  pipWindow = new BrowserWindow({
+    width: 600, height: 80, resizable: false, frame: false, alwaysOnTop: true,
+    skipTaskbar: true, backgroundColor: '#1a1a1a',
+    webPreferences: { contextIsolation: false, nodeIntegration: false },
+  });
+  pipWindow.loadFile(path.join(__dirname, 'src', 'pip.html'));
+  pipWindow.setAlwaysOnTop(true, 'screen-saver');
+  pipWindow.on('closed', () => { pipWindow = null; });
+  return true;
+});
+
+ipcMain.handle('pip:close', () => {
+  if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.close(); pipWindow = null; }
+  return true;
+});
+
+ipcMain.handle('pip:update', (_, html) => {
+  if (pipWindow && !pipWindow.isDestroyed()) {
+    pipWindow.webContents.executeJavaScript(`setContent(${JSON.stringify(html)})`);
+  }
+  return true;
+});

@@ -141,7 +141,7 @@ function getFilteredTodos() {
 }
 
 // --- PiP Pop Out Ticker ---
-let pipWindow = null;
+let pipActive = false;
 let pipInterval = null;
 
 function getTickerHTML() {
@@ -153,39 +153,24 @@ function getTickerHTML() {
 }
 
 async function pipToggle() {
-  if (pipWindow) { pipClose(); return; }
-  if (!window.documentPictureInPicture) {
-    showToast('PiP not supported in this browser', '⚠️');
-    return;
-  }
-  try {
-    pipWindow = await window.documentPictureInPicture.requestWindow({ width: 600, height: 80 });
-    pipWindow.document.body.innerHTML = `
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #1a1a1a; overflow: hidden; }
-        .pip-track { display: inline-block; white-space: nowrap; animation: pip-scroll 20s linear infinite; }
-        .pip-track:hover { animation-play-state: paused; }
-        .todo-item { display: inline-block; padding: 0 30px; font-family: sans-serif; font-weight: bold; font-size: 16px; color: #00ffcc; line-height: 80px; }
-        @keyframes pip-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-      </style>
-      <div class="pip-track">${getTickerHTML()}</div>`;
-    pipInterval = setInterval(() => {
-      if (!pipWindow || pipWindow.closed) { pipClose(); return; }
-      const track = pipWindow.document.querySelector('.pip-track');
-      if (track) track.innerHTML = getTickerHTML();
-    }, 2000);
-    pipWindow.addEventListener('pagehide', () => pipClose());
-    document.getElementById('pipBtn').textContent = '🔴';
-    document.getElementById('pipBtn').title = 'Close Pop Out';
-  } catch (e) {
-    showToast('PiP failed: ' + e.message, '⚠️');
-  }
+  if (pipActive) { await pipClose(); return; }
+  const ok = await window.api.openPip();
+  if (!ok) { showToast('Failed to open PiP window', '⚠️'); return; }
+  pipActive = true;
+  document.getElementById('pipBtn').textContent = '🔴';
+  document.getElementById('pipBtn').title = 'Close Pop Out';
+  const html = getTickerHTML();
+  if (html) await window.api.updatePip(html);
+  pipInterval = setInterval(async () => {
+    if (!pipActive) return;
+    await window.api.updatePip(getTickerHTML());
+  }, 2000);
 }
 
-function pipClose() {
+async function pipClose() {
+  pipActive = false;
   if (pipInterval) { clearInterval(pipInterval); pipInterval = null; }
-  if (pipWindow) { try { pipWindow.close(); } catch(e) {} pipWindow = null; }
+  await window.api.closePip();
   document.getElementById('pipBtn').textContent = '📺';
   document.getElementById('pipBtn').title = 'Pop Out Ticker';
 }
@@ -193,10 +178,7 @@ function pipClose() {
 function renderTicker() {
   const html = getTickerHTML();
   document.getElementById('todoTicker').innerHTML = html;
-  if (pipWindow && !pipWindow.closed) {
-    const track = pipWindow.document.querySelector('.pip-track');
-    if (track) track.innerHTML = html;
-  }
+  if (pipActive) window.api.updatePip(html);
 }
 
 function updateMeta() {
