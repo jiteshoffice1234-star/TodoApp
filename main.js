@@ -182,7 +182,7 @@ ipcMain.handle('get-data-path', () => DATA_DIR);
 ipcMain.handle('pip:open', () => {
   if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.focus(); return true; }
   pipWindow = new BrowserWindow({
-    width: 600, height: 80, resizable: false, frame: false, alwaysOnTop: true,
+    width: 600, height: 80, minWidth: 200, minHeight: 40, resizable: true, frame: false, alwaysOnTop: true,
     skipTaskbar: true, backgroundColor: '#1a1a1a',
     webPreferences: { contextIsolation: false, nodeIntegration: false },
   });
