@@ -25,12 +25,6 @@ let pomoTotal = 25 * 60;
 let pomoInterval = null;
 let pomoSessions = 0;
 
-// Floating Timer
-let ftTotal = 25 * 60;
-let ftRemaining = ftTotal;
-let ftInterval = null;
-let ftRunning = false;
-
 // --- Init ---
 async function init() {
   const raw = await window.api.getData();
@@ -146,12 +140,63 @@ function getFilteredTodos() {
   return list;
 }
 
-function renderTicker() {
+// --- PiP Pop Out Ticker ---
+let pipWindow = null;
+let pipInterval = null;
+
+function getTickerHTML() {
   const pending = data.todos.filter(t => !t.completed);
-  if (!pending.length) { document.getElementById('todoTicker').innerHTML = ''; return; }
-  const items = pending.map(t => t.title);
-  const doubled = items.concat(items);
-  document.getElementById('todoTicker').innerHTML = doubled.map(t => `<span class="todo-item">🎯 ${escapeHtml(t)}</span>`).join('');
+  if (!pending.length) return '';
+  const titles = pending.map(t => escapeHtml(t.title));
+  const doubled = titles.concat(titles);
+  return doubled.map(t => `<span class="todo-item">🎯 ${t}</span>`).join('');
+}
+
+async function pipToggle() {
+  if (pipWindow) { pipClose(); return; }
+  if (!window.documentPictureInPicture) {
+    showToast('PiP not supported in this browser', '⚠️');
+    return;
+  }
+  try {
+    pipWindow = await window.documentPictureInPicture.requestWindow({ width: 600, height: 80 });
+    pipWindow.document.body.innerHTML = `
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a1a; overflow: hidden; }
+        .pip-track { display: inline-block; white-space: nowrap; animation: pip-scroll 20s linear infinite; }
+        .pip-track:hover { animation-play-state: paused; }
+        .todo-item { display: inline-block; padding: 0 30px; font-family: sans-serif; font-weight: bold; font-size: 16px; color: #00ffcc; line-height: 80px; }
+        @keyframes pip-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+      </style>
+      <div class="pip-track">${getTickerHTML()}</div>`;
+    pipInterval = setInterval(() => {
+      if (!pipWindow || pipWindow.closed) { pipClose(); return; }
+      const track = pipWindow.document.querySelector('.pip-track');
+      if (track) track.innerHTML = getTickerHTML();
+    }, 2000);
+    pipWindow.addEventListener('pagehide', () => pipClose());
+    document.getElementById('pipBtn').textContent = '🔴';
+    document.getElementById('pipBtn').title = 'Close Pop Out';
+  } catch (e) {
+    showToast('PiP failed: ' + e.message, '⚠️');
+  }
+}
+
+function pipClose() {
+  if (pipInterval) { clearInterval(pipInterval); pipInterval = null; }
+  if (pipWindow) { try { pipWindow.close(); } catch(e) {} pipWindow = null; }
+  document.getElementById('pipBtn').textContent = '📺';
+  document.getElementById('pipBtn').title = 'Pop Out Ticker';
+}
+
+function renderTicker() {
+  const html = getTickerHTML();
+  document.getElementById('todoTicker').innerHTML = html;
+  if (pipWindow && !pipWindow.closed) {
+    const track = pipWindow.document.querySelector('.pip-track');
+    if (track) track.innerHTML = html;
+  }
 }
 
 function updateMeta() {
@@ -419,50 +464,6 @@ function wrapSelection(before, after) {
 // --- Drag & Drop ---
 let dragId = null;
 let dragEl = null;
-// --- Floating Timer ---
-const ftCircle = document.getElementById('ringProgress');
-const ftCircumference = 2 * Math.PI * 54;
-
-function ftUpdateEndTime() {
-  const now = new Date();
-  const end = new Date(now.getTime() + ftRemaining * 1000);
-  document.getElementById('ftEnd').textContent = `Ends at ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
-}
-
-function ftUpdateDisplay() {
-  const min = Math.floor(ftRemaining / 60);
-  const sec = ftRemaining % 60;
-  document.getElementById('ftTime').textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  const offset = ftCircumference - (ftRemaining / ftTotal) * ftCircumference;
-  if (ftCircle) ftCircle.style.strokeDashoffset = offset;
-}
-
-function ftToggle() {
-  if (ftRunning) { ftPause(); } else { ftStart(); }
-}
-
-function ftStart() {
-  if (ftRemaining <= 0) return;
-  ftUpdateEndTime();
-  ftInterval = setInterval(() => {
-    ftRemaining--;
-    ftUpdateDisplay();
-    if (ftRemaining <= 0) {
-      clearInterval(ftInterval); ftInterval = null; ftRunning = false;
-      document.getElementById('ftPlayBtn').textContent = 'Play ▶';
-      document.getElementById('ftEnd').textContent = 'Time is up!';
-      window.api.sendNotification('Focus Timer', 'Time is up!');
-    }
-  }, 1000);
-  ftRunning = true;
-  document.getElementById('ftPlayBtn').textContent = 'Pause ⏸';
-}
-
-function ftPause() {
-  clearInterval(ftInterval); ftInterval = null; ftRunning = false;
-  document.getElementById('ftPlayBtn').textContent = 'Play ▶';
-}
-
 function initDragDrop() {
   const list = document.getElementById('todoList');
   list.addEventListener('dragstart', onDragStart);
@@ -785,12 +786,12 @@ function bindEvents() {
   document.getElementById('addBtn').addEventListener('click', openAddModal);
   document.getElementById('saveBtn').addEventListener('click', saveTodo);
   document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  document.getElementById('pipBtn').addEventListener('click', pipToggle);
   document.getElementById('clearCompleted').addEventListener('click', clearCompleted);
   document.getElementById('manageTags').addEventListener('click', openTagModal);
   document.getElementById('addTagBtn').addEventListener('click', addTag);
   document.getElementById('multiSelectBtn').addEventListener('click', toggleMultiSelect);
   document.getElementById('pomodoroBtn').addEventListener('click', openPomodoro);
-  document.getElementById('ftPlayBtn').addEventListener('click', ftToggle);
 
   document.getElementById('viewToggle').addEventListener('click', () => {
     calendarMode = !calendarMode;
@@ -860,7 +861,6 @@ function bindEvents() {
 
 // Global
 window.toggleTodo = toggleTodo; window.togglePin = togglePin; window.deleteTodo = deleteTodo;
-window.ftToggle = ftToggle;
 window.editTodo = editTodo; window.closeModal = closeModal; window.closeTagModal = closeTagModal;
 window.selectTagColor = selectTagColor; window.deleteTag = deleteTag;
 window.toggleTagOption = toggleTagOption; window.toggleSelect = toggleSelect;
