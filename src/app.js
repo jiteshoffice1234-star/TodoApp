@@ -12,6 +12,7 @@ let selectedTagColor = COLORS[0];
 let darkMode = false;
 let multiSelectMode = false;
 let selectedIds = new Set();
+let notifiedTodos = new Set();
 let calendarMode = false;
 let calYear, calMonth;
 let editingSubtasks = [];
@@ -69,6 +70,8 @@ function checkDueNotifications() {
   const today = new Date().toISOString().split('T')[0];
   for (const todo of data.todos) {
     if (todo.completed || !todo.dueDate) continue;
+    const notifKey = `${todo.id}_${todo.dueDate}`;
+    if (notifiedTodos.has(notifKey)) continue;
     if (todo.dueDate === today) {
       window.api.sendNotification('Todo App', `"${todo.title}" is due today!`);
     } else if (todo.dueDate < today) {
@@ -78,7 +81,10 @@ function checkDueNotifications() {
       } else if (overdue > 1) {
         window.api.sendNotification('Todo App', `"${todo.title}" is ${overdue} days overdue!`);
       }
+    } else {
+      continue;
     }
+    notifiedTodos.add(notifKey);
     if (todo.reminderAt && todo.reminderAt <= Date.now() && !todo.reminderFired) {
       window.api.sendNotification('Reminder', todo.title);
       todo.reminderFired = true;
@@ -506,7 +512,8 @@ async function clearCompleted() {
 
 function editTodo(id) {
   const todo = data.todos.find(t => t.id === id);
-  if (!todo || multiSelectMode) return;
+  if (!todo) return;
+  if (multiSelectMode) { showToast('Exit multi-select mode to edit', '⚠️'); return; }
   editingTodoId = id;
   document.getElementById('modalTitle').textContent = '📝 Edit Todo';
   document.getElementById('saveBtn').textContent = '💾 Update';
@@ -660,11 +667,11 @@ async function bulkDelete() {
 function renderTagSelector() {
   const container = document.getElementById('tagSelector');
   if (!data.tags.length) { container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No tags yet. Create in 🏷️</p>'; return; }
-  const selectedTagIds = document.querySelectorAll('.tag-option.selected');
-  const selectedIds = new Set();
-  selectedTagIds.forEach(el => selectedIds.add(parseInt(el.dataset.tagId)));
+  const selectedTagEls = document.querySelectorAll('.tag-option.selected');
+  const curTagIds = new Set();
+  selectedTagEls.forEach(el => curTagIds.add(parseInt(el.dataset.tagId)));
   container.innerHTML = data.tags.map(t => {
-    const isSelected = selectedIds.has(t.id);
+    const isSelected = curTagIds.has(t.id);
     return `<div class="tag-option ${isSelected ? 'selected' : ''}" data-tag-id="${t.id}" onclick="toggleTagOption(this)">
       <span class="tag-option-dot" style="background:${t.color}"></span>${escapeHtml(t.name)}</div>`;
   }).join('');
