@@ -2,8 +2,6 @@ name: Build APK
 
 on:
   workflow_dispatch:  # Manual trigger
-  push:
-    branches: [main, master]
 
 jobs:
   build:
@@ -11,11 +9,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
+      - name: Setup Flutter (master channel)
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
-          flutter-version: '3.27.0'
+          channel: 'master'
 
       - name: Flutter pub get
         run: flutter pub get
