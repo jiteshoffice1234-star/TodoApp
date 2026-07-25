@@ -9,5 +9,5 @@ contextBridge.exposeInMainWorld('api', {
   openPip: () => ipcRenderer.invoke('pip:open'),
   closePip: () => ipcRenderer.invoke('pip:close'),
   updatePip: (html) => ipcRenderer.invoke('pip:update', html),
-  updatePipTheme: (isDark) => ipcRenderer.invoke('pip:theme', isDark),
+  updatePipTheme: (theme) => ipcRenderer.invoke('pip:theme', theme),
 });

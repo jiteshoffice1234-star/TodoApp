@@ -9,7 +9,16 @@ let searchQuery = '';
 let editingTodoId = null;
 let selectedPriority = 'medium';
 let selectedTagColor = COLORS[0];
-let darkMode = false;
+let currentTheme = 'light';
+
+const THEMES = [
+  { id: 'light', icon: '☀️', label: 'Light' },
+  { id: 'dark', icon: '🌙', label: 'Dark' },
+  { id: 'neobrutalism', icon: '💥', label: 'Neo' },
+  { id: 'glass', icon: '🪟', label: 'Glass' },
+  { id: 'minimal', icon: '⚪', label: 'Minimal' },
+  { id: 'clay', icon: '🏺', label: 'Clay' },
+];
 let multiSelectMode = false;
 let selectedIds = new Set();
 let notifiedTodos = new Set();
@@ -57,13 +66,23 @@ async function init() {
   setInterval(checkDueNotifications, 60000);
 }
 
-function loadTheme() { darkMode = localStorage.getItem('darkMode') === 'true'; applyTheme(); }
+function loadTheme() { currentTheme = localStorage.getItem('theme') || 'light'; applyTheme(); }
 function applyTheme() {
-  document.body.classList.toggle('dark', darkMode);
-  document.getElementById('themeToggle').textContent = darkMode ? '☀️' : '🌙';
-  if (pipActive) window.api.updatePipTheme(darkMode);
+  document.body.className = document.body.className.replace(/theme-\w+/g, '').trim();
+  if (currentTheme !== 'light') document.body.classList.add('theme-' + currentTheme);
+  const t = THEMES.find(x => x.id === currentTheme);
+  document.getElementById('themeToggle').textContent = t ? t.icon : '☀️';
+  document.getElementById('themeToggle').title = t ? t.label : 'Light';
+  if (pipActive) window.api.updatePipTheme(currentTheme);
 }
-function toggleTheme() { darkMode = !darkMode; localStorage.setItem('darkMode', darkMode); applyTheme(); }
+function toggleTheme() {
+  const idx = THEMES.findIndex(t => t.id === currentTheme);
+  const next = (idx + 1) % THEMES.length;
+  currentTheme = THEMES[next].id;
+  localStorage.setItem('theme', currentTheme);
+  applyTheme();
+  showToast(`Theme: ${THEMES[next].label}`, THEMES[next].icon);
+}
 async function persist() { await window.api.saveData(data); }
 
 // --- Notifications ---
@@ -160,7 +179,7 @@ async function pipToggle() {
   pipActive = true;
   document.getElementById('pipBtn').textContent = '🔴';
   document.getElementById('pipBtn').title = 'Close Pop Out';
-  await window.api.updatePipTheme(darkMode);
+  await window.api.updatePipTheme(currentTheme);
   const html = getTickerHTML();
   if (html) await window.api.updatePip(html);
   pipInterval = setInterval(async () => {

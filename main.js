@@ -182,7 +182,7 @@ ipcMain.handle('get-data-path', () => DATA_DIR);
 ipcMain.handle('pip:open', () => {
   if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.focus(); return true; }
   pipWindow = new BrowserWindow({
-    width: 600, height: 80, minWidth: 200, minHeight: 40, resizable: true, frame: false, alwaysOnTop: true,
+    width: 500, height: 44, minWidth: 150, minHeight: 30, resizable: true, frame: false, alwaysOnTop: true,
     skipTaskbar: true, backgroundColor: '#1a1a1a',
     webPreferences: { contextIsolation: false, nodeIntegration: false },
   });
@@ -204,9 +204,9 @@ ipcMain.handle('pip:update', (_, html) => {
   return true;
 });
 
-ipcMain.handle('pip:theme', (_, isDark) => {
+ipcMain.handle('pip:theme', (_, theme) => {
   if (pipWindow && !pipWindow.isDestroyed()) {
-    pipWindow.webContents.executeJavaScript(`setTheme(${JSON.stringify(isDark)})`);
+    pipWindow.webContents.executeJavaScript(`setTheme(${JSON.stringify(theme)})`);
   }
   return true;
 });
