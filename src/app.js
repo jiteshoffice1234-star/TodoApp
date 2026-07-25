@@ -142,7 +142,13 @@ function getFilteredTodos() {
 
 function renderTicker() {
   const pending = data.todos.filter(t => !t.completed);
-  const items = pending.length ? pending.map(t => escapeHtml(t.title)) : ['No pending tasks — you are all caught up!'];
+  const el = document.getElementById('tickerWindow');
+  if (pending.length === 0) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  const items = pending.map(t => escapeHtml(t.title));
   const doubled = items.concat(items);
   document.getElementById('todoTicker').innerHTML = doubled.map(t => `<span class="ticker-item">${t}</span>`).join('');
 }
