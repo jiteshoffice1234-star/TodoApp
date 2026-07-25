@@ -41,15 +41,6 @@ header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
 .icon-btn.active { background: var(--surface-variant); color: var(--primary); }
 .hidden { display: none !important; }
 
-/* News Ticker */
-.ticker-window { width: 100%; background: var(--surface); border-bottom: 1px solid var(--border); overflow: hidden; padding: 6px 0; box-sizing: border-box; }
-.ticker-train { display: inline-block; white-space: nowrap; animation: ticker-slide 30s linear infinite; }
-.ticker-train:hover { animation-play-state: paused; }
-.ticker-item { display: inline-block; padding: 0 28px; font-size: 13px; font-weight: 500; color: var(--text-variant); }
-.ticker-item::before { content: '🎯 '; }
-body.dark .ticker-item { color: var(--text-variant); }
-@keyframes ticker-slide { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-
 /* Multi-select bar */
 .multi-select-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--primary); color: white; font-size: 13px; font-weight: 600; }
 .ms-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px; transition: all 0.15s; }
