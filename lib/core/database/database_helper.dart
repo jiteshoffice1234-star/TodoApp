@@ -157,10 +157,12 @@ class DatabaseHelper {
 
   Future<List<Todo>> searchTodos(String query) async {
     final db = await database;
+    // Escape LIKE wildcards so user can search for literal '%' or '_'
+    final safe = query.replaceAll('%', '\\%').replaceAll('_', '\\_');
     final maps = await db.query(
       'todos',
       where: 'title LIKE ? OR description LIKE ? OR tags LIKE ?',
-      whereArgs: ['%$query%', '%$query%', '%$query%'],
+      whereArgs: ['%$safe%', '%$safe%', '%$safe%'],
     );
     return maps.map((map) => Todo.fromMap(map)).toList();
   }
@@ -236,6 +238,14 @@ class DatabaseHelper {
     final result = await db.rawQuery(
       'SELECT COALESCE(SUM(durationMinutes), 0) as total FROM pomodoro_sessions WHERE todoId = ? AND completed = 1',
       [todoId],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<int> getTotalPomodoroMinutes() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COALESCE(SUM(durationMinutes), 0) as total FROM pomodoro_sessions WHERE completed = 1',
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }

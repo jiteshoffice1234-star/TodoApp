@@ -15,7 +15,9 @@ class TodoCard extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onLongPress;
   final int index;
+  final bool isSelected;
 
   const TodoCard({
     super.key,
@@ -24,7 +26,9 @@ class TodoCard extends StatelessWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
+    this.onLongPress,
     this.index = 0,
+    this.isSelected = false,
   });
 
   Color _hexToColor(String hex) => parseHexColor(hex);
@@ -67,6 +71,16 @@ class TodoCard extends StatelessWidget {
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeOutCubic,
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: isSelected
+              ? BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  border: Border.all(
+                    color: theme.colorScheme.primary,
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                )
+              : null,
           child: _TodoCardContent(
             todo: todo,
             category: category,
@@ -75,6 +89,7 @@ class TodoCard extends StatelessWidget {
             onEdit: onEdit,
             onToggle: onToggle,
             onDelete: onDelete,
+            onLongPress: onLongPress,
             hexToColor: _hexToColor,
           ),
         ),
@@ -91,6 +106,7 @@ class _TodoCardContent extends StatefulWidget {
   final VoidCallback onEdit;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final VoidCallback? onLongPress;
   final Color Function(String) hexToColor;
 
   const _TodoCardContent({
@@ -101,6 +117,7 @@ class _TodoCardContent extends StatefulWidget {
     required this.onEdit,
     required this.onToggle,
     required this.onDelete,
+    this.onLongPress,
     required this.hexToColor,
   });
 
@@ -120,29 +137,32 @@ class _TodoCardContentState extends State<_TodoCardContent>
     final isOverdue = widget.isOverdue;
     final _hexToColor = widget.hexToColor;
 
-    return GestureDetector(
-      onTap: widget.onEdit,
-      onTapDown: (_) => setState(() => _scale = 0.97),
-      onTapUp: (_) => setState(() => _scale = 1.0),
-      onTapCancel: () => setState(() => _scale = 1.0),
+    return Listener(
+      onPointerDown: (_) => setState(() => _scale = 0.97),
+      onPointerUp: (_) => setState(() => _scale = 1.0),
+      onPointerCancel: (_) => setState(() => _scale = 1.0),
       child: AnimatedScale(
         scale: _scale,
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
-        child: Card(
-          color: t.isDone
-              ? theme.colorScheme.surfaceContainerHighest
-              : theme.colorScheme.surface,
-          elevation: t.isDone ? 0 : 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: isOverdue
-                ? BorderSide(color: Colors.red.withOpacity(0.3))
-                : BorderSide.none,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 12, 12, 12),
-            child: Row(
+          child: Card(
+            color: t.isDone
+                ? theme.colorScheme.surfaceContainerHighest
+                : theme.colorScheme.surface,
+            elevation: t.isDone ? 0 : 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: isOverdue
+                  ? BorderSide(color: Colors.red.withOpacity(0.3))
+                  : BorderSide.none,
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: widget.onEdit,
+              onLongPress: widget.onLongPress,
+              child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 12, 12, 12),
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Checkbox(
@@ -329,6 +349,7 @@ class _TodoCardContentState extends State<_TodoCardContent>
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

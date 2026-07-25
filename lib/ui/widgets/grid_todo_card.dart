@@ -13,7 +13,9 @@ class GridTodoCard extends StatefulWidget {
   final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onLongPress;
   final int index;
+  final bool isSelected;
 
   const GridTodoCard({
     super.key,
@@ -22,7 +24,9 @@ class GridTodoCard extends StatefulWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
+    this.onLongPress,
     this.index = 0,
+    this.isSelected = false,
   });
 
   @override
@@ -57,11 +61,10 @@ class _GridTodoCardState extends State<GridTodoCard> {
           duration: (400 + widget.index * 60).ms,
         ),
       ],
-      child: GestureDetector(
-        onTap: widget.onEdit,
-        onTapDown: (_) => setState(() => _scale = 0.95),
-        onTapUp: (_) => setState(() => _scale = 1.0),
-        onTapCancel: () => setState(() => _scale = 1.0),
+      child: Listener(
+        onPointerDown: (_) => setState(() => _scale = 0.95),
+        onPointerUp: (_) => setState(() => _scale = 1.0),
+        onPointerCancel: (_) => setState(() => _scale = 1.0),
         child: AnimatedScale(
           scale: _scale,
           duration: const Duration(milliseconds: 150),
@@ -80,6 +83,7 @@ class _GridTodoCardState extends State<GridTodoCard> {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: widget.onEdit,
+              onLongPress: widget.onLongPress,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(

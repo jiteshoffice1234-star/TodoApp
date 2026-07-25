@@ -41,11 +41,13 @@ async function init() {
     if (t.subtasks === undefined) t.subtasks = [];
     if (t.recurring === undefined) t.recurring = { type: 'none', interval: 1 };
     if (t.reminderAt === undefined) t.reminderAt = null;
+    if (t.reminderFired === undefined) t.reminderFired = false;
     if (t.sortOrder === undefined) t.sortOrder = 0;
   }
   const now = new Date();
   calYear = now.getFullYear();
   calMonth = now.getMonth();
+  data._selectedCalDay = now.toISOString().split('T')[0];
   loadTheme();
   renderAll();
   bindEvents();
@@ -71,8 +73,10 @@ function checkDueNotifications() {
       window.api.sendNotification('Todo App', `"${todo.title}" is due today!`);
     } else if (todo.dueDate < today) {
       const overdue = Math.floor((new Date().getTime() - new Date(todo.dueDate).getTime()) / 86400000);
-      if (overdue === 1 || overdue % 7 === 0) {
-        window.api.sendNotification('Todo App', `"${todo.title}" is ${overdue} day${overdue > 1 ? 's' : ''} overdue!`);
+      if (overdue === 1) {
+        window.api.sendNotification('Todo App', `"${todo.title}" is 1 day overdue!`);
+      } else if (overdue > 1) {
+        window.api.sendNotification('Todo App', `"${todo.title}" is ${overdue} days overdue!`);
       }
     }
     if (todo.reminderAt && todo.reminderAt <= Date.now() && !todo.reminderFired) {
@@ -638,9 +642,17 @@ function bulkComplete() {
 async function bulkDelete() {
   const result = await window.api.confirmDelete(`Delete ${selectedIds.size} todos?`);
   if (result === 1) {
+    const deleted = data.todos.filter(t => selectedIds.has(t.id));
     data.todos = data.todos.filter(t => !selectedIds.has(t.id));
-    showToast(`${selectedIds.size} todos deleted`, '🗑️');
-    bulkClearSelection(); persist(); renderAll();
+    data.deletedTodos.unshift(...deleted);
+    if (data.deletedTodos.length > 10) data.deletedTodos = data.deletedTodos.slice(0, 10);
+    const count = selectedIds.size;
+    bulkClearSelection();
+    persist(); renderAll();
+    showToast(`${count} todos deleted`, '🗑️', 4000, () => {
+      data.todos.unshift(...data.deletedTodos.splice(0, deleted.length));
+      persist(); renderAll();
+    });
   }
 }
 
@@ -648,8 +660,11 @@ async function bulkDelete() {
 function renderTagSelector() {
   const container = document.getElementById('tagSelector');
   if (!data.tags.length) { container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No tags yet. Create in 🏷️</p>'; return; }
+  const selectedTagIds = document.querySelectorAll('.tag-option.selected');
+  const selectedIds = new Set();
+  selectedTagIds.forEach(el => selectedIds.add(parseInt(el.dataset.tagId)));
   container.innerHTML = data.tags.map(t => {
-    const isSelected = document.querySelector(`.tag-option[data-tag-id="${t.id}"]`)?.classList.contains('selected');
+    const isSelected = selectedIds.has(t.id);
     return `<div class="tag-option ${isSelected ? 'selected' : ''}" data-tag-id="${t.id}" onclick="toggleTagOption(this)">
       <span class="tag-option-dot" style="background:${t.color}"></span>${escapeHtml(t.name)}</div>`;
   }).join('');
@@ -760,6 +775,7 @@ function bindEvents() {
   });
 
   document.getElementById('tagName').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTag(); });
+  document.getElementById('subtaskInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addSubtask(); });
   document.getElementById('todoTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveTodo(); });
 
   document.querySelectorAll('.modal-overlay').forEach(overlay => {

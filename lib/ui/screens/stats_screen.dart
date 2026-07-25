@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../providers/todo_provider.dart';
 import '../../providers/pomodoro_provider.dart';
 import '../../data/models/recurring_config.dart';
+import '../../core/database/database_helper.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -328,37 +329,43 @@ class StatsScreen extends StatelessWidget {
   }
 
   Widget _buildPomodoroStats(PomodoroProvider pomodoro, ThemeData theme) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pomodoro Sessions',
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+    return FutureBuilder<int>(
+      future: DatabaseHelper.instance.getTotalPomodoroMinutes(),
+      builder: (context, snapshot) {
+        final totalMinutes = snapshot.data ?? pomodoro.sessionCount * 25;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatItem(
-                  'Sessions',
-                  pomodoro.sessionCount,
-                  Icons.timer,
-                  theme,
+                Text(
+                  'Pomodoro Sessions',
+                  style: theme.textTheme.titleMedium,
                 ),
-                _buildStatItem(
-                  'Focus Time',
-                  pomodoro.sessionCount * 25,
-                  Icons.access_time,
-                  theme,
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatItem(
+                      'Sessions',
+                      pomodoro.sessionCount,
+                      Icons.timer,
+                      theme,
+                    ),
+                    _buildStatItem(
+                      'Focus Time',
+                      totalMinutes,
+                      Icons.access_time,
+                      theme,
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

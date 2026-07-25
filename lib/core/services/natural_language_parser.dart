@@ -151,6 +151,24 @@ class NaturalLanguageParser {
       case 'sun': case 'sunday':
         return _nextWeekday(DateTime.sunday);
     }
+
+    // Handle numeric date formats: MM/DD, MM/DD/YYYY, MM-DD, MM-DD-YYYY
+    final numericMatch = RegExp(r'^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$').firstMatch(input.trim());
+    if (numericMatch != null) {
+      final month = int.parse(numericMatch.group(1)!);
+      final day = int.parse(numericMatch.group(2)!);
+      var year = now.year;
+      if (numericMatch.group(3) != null) {
+        year = int.parse(numericMatch.group(3)!);
+        if (year < 100) year += 2000; // 2-digit year → 2000+ 
+      }
+      // If the month has already passed this year, assume next year
+      if (numericMatch.group(3) == null && (month < now.month || (month == now.month && day < now.day))) {
+        year += 1;
+      }
+      return DateTime(year, month, day);
+    }
+
     return null;
   }
 

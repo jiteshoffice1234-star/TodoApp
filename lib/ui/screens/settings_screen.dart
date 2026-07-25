@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/theme_provider.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -103,7 +104,7 @@ class SettingsScreen extends StatelessWidget {
                   const ListTile(
                     leading: Icon(Icons.info_outline),
                     title: Text('Version'),
-                    subtitle: Text('3.0.0'),
+                    subtitle: Text('3.1.0'),
                   ),
                   const ListTile(
                     leading: Icon(Icons.star_outline),

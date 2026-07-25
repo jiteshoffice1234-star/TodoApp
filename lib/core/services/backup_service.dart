@@ -25,7 +25,7 @@ class BackupService {
   Future<String> exportToJson(List<Todo> todos, List<TodoCategory> categories) async {
     final data = {
       'exportDate': DateTime.now().toIso8601String(),
-      'version': '3.0.0',
+      'version': '3.1.0',
       'todos': todos.map((t) => t.toMap()).toList(),
       'categories': categories.map((c) => c.toMap()).toList(),
     };

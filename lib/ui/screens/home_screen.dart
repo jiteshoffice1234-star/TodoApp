@@ -396,17 +396,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final category = provider.getCategoryById(todo.categoryId);
         final isSelected = todo.id != null && provider.selectedTodoIds.contains(todo.id);
         
-        return GestureDetector(
+        return TodoCard(
           key: ValueKey(todo.id),
-          onLongPress: () {
-            if (!provider.isMultiSelectMode) {
-              provider.toggleMultiSelectMode();
-            }
-            if (todo.id != null) {
-              provider.toggleTodoSelection(todo.id!);
-            }
-          },
-          onTap: () {
+          todo: todo,
+          category: category,
+          index: index,
+          isSelected: isSelected,
+          onToggle: () => provider.toggleTodo(todo.id!),
+          onEdit: () {
             if (provider.isMultiSelectMode && todo.id != null) {
               provider.toggleTodoSelection(todo.id!);
             } else {
@@ -417,30 +414,15 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
           },
-          child: Container(
-            decoration: isSelected
-                ? BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    border: Border.all(
-                      color: theme.colorScheme.primary,
-                      width: 2,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  )
-                : null,
-            child: TodoCard(
-              todo: todo,
-              category: category,
-              index: index,
-              onToggle: () => provider.toggleTodo(todo.id!),
-              onEdit: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AddEditTodoScreen(todo: todo),
-                ),
-              ),
-              onDelete: () => _confirmDelete(context, provider, todo),
-            ),
-          ),
+          onDelete: () => _confirmDelete(context, provider, todo),
+          onLongPress: () {
+            if (!provider.isMultiSelectMode) {
+              provider.toggleMultiSelectMode();
+            }
+            if (todo.id != null) {
+              provider.toggleTodoSelection(todo.id!);
+            }
+          },
         );
       },
     );
@@ -462,48 +444,40 @@ class _HomeScreenState extends State<HomeScreen> {
         final category = provider.getCategoryById(todo.categoryId);
         final isSelected = todo.id != null && provider.selectedTodoIds.contains(todo.id);
         
-        return GestureDetector(
-          key: ValueKey(todo.id),
-          onLongPress: () {
-            if (!provider.isMultiSelectMode) {
-              provider.toggleMultiSelectMode();
-            }
-            if (todo.id != null) {
-              provider.toggleTodoSelection(todo.id!);
-            }
-          },
-          onTap: () {
-            if (provider.isMultiSelectMode && todo.id != null) {
-              provider.toggleTodoSelection(todo.id!);
-            } else {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AddEditTodoScreen(todo: todo),
-                ),
-              );
-            }
-          },
-          child: Container(
-            decoration: isSelected
-                ? BoxDecoration(
-                    border: Border.all(
-                      color: theme.colorScheme.primary,
-                      width: 2,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  )
-                : null,
-            child: GridTodoCard(
-              todo: todo,
-              category: category,
-              onToggle: () => provider.toggleTodo(todo.id!),
-              onEdit: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AddEditTodoScreen(todo: todo),
-                ),
-              ),
-              onDelete: () => _confirmDelete(context, provider, todo),
-            ),
+        return Container(
+          decoration: isSelected
+              ? BoxDecoration(
+                  border: Border.all(
+                    color: theme.colorScheme.primary,
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                )
+              : null,
+          child: GridTodoCard(
+            todo: todo,
+            category: category,
+            onToggle: () => provider.toggleTodo(todo.id!),
+            onEdit: () {
+              if (provider.isMultiSelectMode && todo.id != null) {
+                provider.toggleTodoSelection(todo.id!);
+              } else {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => AddEditTodoScreen(todo: todo),
+                  ),
+                );
+              }
+            },
+            onDelete: () => _confirmDelete(context, provider, todo),
+            onLongPress: () {
+              if (!provider.isMultiSelectMode) {
+                provider.toggleMultiSelectMode();
+              }
+              if (todo.id != null) {
+                provider.toggleTodoSelection(todo.id!);
+              }
+            },
           ),
         );
       },

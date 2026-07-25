@@ -36,7 +36,11 @@ function checkDueDates(data) {
       notifications.push(`"${todo.title}" is due today!`);
     } else if (todo.dueDate < todayStr) {
       const overdue = Math.floor((today.getTime() - new Date(todo.dueDate).getTime()) / 86400000);
-      notifications.push(`"${todo.title}" is ${overdue} day${overdue > 1 ? 's' : ''} overdue!`);
+      if (overdue === 1) {
+        notifications.push(`"${todo.title}" is 1 day overdue!`);
+      } else if (overdue > 1) {
+        notifications.push(`"${todo.title}" is ${overdue} days overdue!`);
+      }
     }
     // Check reminders
     if (todo.reminderAt && todo.reminderAt <= Date.now() && !todo.reminderFired) {
@@ -134,8 +138,8 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     const data = loadData();
     processRecurring(data);
-    saveData(data);
     const notices = checkDueDates(data);
+    saveData(data);  // save AFTER checkDueDates so reminderFired is persisted
     for (const msg of notices) {
       new Notification({ title: 'Todo App', body: msg }).show();
     }

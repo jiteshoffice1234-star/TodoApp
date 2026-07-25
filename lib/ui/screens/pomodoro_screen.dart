@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/pomodoro_provider.dart';
-import '../../providers/todo_provider.dart';
 import '../../data/models/todo.dart';
 
 class PomodoroScreen extends StatefulWidget {
@@ -159,7 +158,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                   ActionChip(
                     label: const Text('15 min'),
                     onPressed: () {
-                      pomodoro.startWork(todoId: widget.todo?.id);
+                      pomodoro.startWork(todoId: widget.todo?.id, durationMinutes: 15);
                     },
                   ),
                   ActionChip(

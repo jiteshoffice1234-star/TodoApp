@@ -8,6 +8,7 @@ import '../data/repositories/category_repository.dart';
 import '../core/database/database_helper.dart';
 import '../core/services/notification_service.dart';
 import '../core/services/natural_language_parser.dart';
+import '../core/services/widget_service.dart';
 
 enum TodoFilter { all, pending, done }
 enum TodoSort { dateCreated, dateUpdated, dueDate, priority, alphabetical, sortOrder }
@@ -290,7 +291,6 @@ class TodoProvider extends ChangeNotifier {
   }
 
   Future<void> reorderTodos(int oldIndex, int newIndex) async {
-    if (oldIndex < newIndex) newIndex -= 1;
     final item = _todos.removeAt(oldIndex);
     _todos.insert(newIndex, item);
 
@@ -325,6 +325,11 @@ class TodoProvider extends ChangeNotifier {
     await _todoRepo.update(updated);
     _todos[index] = updated;
     
+    // Cancel reminder if completed
+    if (updated.isDone) {
+      await NotificationService.instance.cancelReminder(id);
+    }
+    
     // Handle recurring
     if (updated.isDone && updated.recurringConfig.type != RecurrenceType.none) {
       final nextDate = updated.recurringConfig.getNextOccurrence(
@@ -337,10 +342,22 @@ class TodoProvider extends ChangeNotifier {
           nextDueDate: null,
           subtasks: updated.subtasks.map((s) => s.copyWith(isDone: false)).toList(),
         );
-        await _todoRepo.insert(newTodo);
+        final newId = await _todoRepo.insert(newTodo);
+        if (updated.hasReminder && updated.reminderAt != null) {
+          final newReminderAt = nextDate.subtract(const Duration(hours: 1));
+          if (newReminderAt.isAfter(DateTime.now())) {
+            await NotificationService.instance.scheduleReminder(
+              newTodo.copyWith(id: newId, reminderAt: newReminderAt),
+            );
+          }
+        }
       }
     }
     
+    try {
+      WidgetService.instance.updateWidget();
+    } catch (_) {    }
+    try { WidgetService.instance.updateWidget(); } catch (_) {}
     notifyListeners();
   }
 
@@ -430,6 +447,7 @@ class TodoProvider extends ChangeNotifier {
     await _todoRepo.delete(id);
     await NotificationService.instance.cancelReminder(id);
     _todos.removeWhere((t) => t.id == id);
+    try { WidgetService.instance.updateWidget(); } catch (_) {}
     notifyListeners();
   }
 

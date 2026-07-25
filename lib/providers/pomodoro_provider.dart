@@ -32,11 +32,11 @@ class PomodoroProvider extends ChangeNotifier {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  void startWork({int? todoId}) {
+  void startWork({int? todoId, int? durationMinutes}) {
     _currentTodoId = todoId;
     _isBreak = false;
     _isStopped = false;
-    _totalSeconds = workDuration * 60;
+    _totalSeconds = (durationMinutes ?? workDuration) * 60;
     _remainingSeconds = _totalSeconds;
     _startTimer();
   }
@@ -78,6 +78,7 @@ class PomodoroProvider extends ChangeNotifier {
 
   void resume() {
     if (!_isRunning && _remainingSeconds > 0) {
+      _isStopped = false;
       _startTimer();
     }
   }
@@ -124,8 +125,8 @@ class PomodoroProvider extends ChangeNotifier {
     if (_currentTodoId != null) {
       await DatabaseHelper.instance.savePomodoroSession(
         _currentTodoId!,
-        DateTime.now().subtract(Duration(minutes: workDuration)),
-        workDuration,
+        DateTime.now().subtract(Duration(minutes: _totalSeconds ~/ 60)),
+        _totalSeconds ~/ 60,
         true,
       );
     }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/todo_provider.dart';
 import '../../core/services/backup_service.dart';
+import '../../data/models/todo.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -120,7 +121,7 @@ class _BackupScreenState extends State<BackupScreen> {
               )
             else
               ...(_backups.where((f) => f.path.endsWith('.json')).map((file) {
-                final fileName = file.path.split('/').last;
+                final fileName = file.path.split(RegExp(r'[\\/]')).last;
                 final date = File(file.path).lastModifiedSync();
                 return ListTile(
                   leading: Icon(Icons.code, color: theme.colorScheme.primary),
@@ -172,7 +173,7 @@ class _BackupScreenState extends State<BackupScreen> {
                 itemCount: _backups.length,
                 itemBuilder: (context, index) {
                   final file = _backups[index];
-                  final fileName = file.path.split('/').last;
+                  final fileName = file.path.split(RegExp(r'[\\/]')).last;
                   final isJson = fileName.endsWith('.json');
                   final date = File(file.path).lastModifiedSync();
                   
@@ -246,7 +247,7 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _importFromBackup(String path) async {
     try {
       final data = await BackupService.instance.importFromJson(path);
-      final todos = data['todos'] as List;
+      final todos = data['todos'] as List<Todo>;
       
       if (mounted) {
         final confirmed = await showDialog<bool>(
@@ -268,7 +269,7 @@ class _BackupScreenState extends State<BackupScreen> {
         );
         
         if (confirmed == true) {
-          await context.read<TodoProvider>().importTodos(todos.cast());
+          await context.read<TodoProvider>().importTodos(todos);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Imported ${todos.length} todos')),
