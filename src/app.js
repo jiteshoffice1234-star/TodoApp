@@ -25,6 +25,12 @@ let pomoTotal = 25 * 60;
 let pomoInterval = null;
 let pomoSessions = 0;
 
+// Floating Timer
+let ftTotal = 25 * 60;
+let ftRemaining = ftTotal;
+let ftInterval = null;
+let ftRunning = false;
+
 // --- Init ---
 async function init() {
   const raw = await window.api.getData();
@@ -413,6 +419,50 @@ function wrapSelection(before, after) {
 // --- Drag & Drop ---
 let dragId = null;
 let dragEl = null;
+// --- Floating Timer ---
+const ftCircle = document.getElementById('ringProgress');
+const ftCircumference = 2 * Math.PI * 54;
+
+function ftUpdateEndTime() {
+  const now = new Date();
+  const end = new Date(now.getTime() + ftRemaining * 1000);
+  document.getElementById('ftEnd').textContent = `Ends at ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+}
+
+function ftUpdateDisplay() {
+  const min = Math.floor(ftRemaining / 60);
+  const sec = ftRemaining % 60;
+  document.getElementById('ftTime').textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  const offset = ftCircumference - (ftRemaining / ftTotal) * ftCircumference;
+  if (ftCircle) ftCircle.style.strokeDashoffset = offset;
+}
+
+function ftToggle() {
+  if (ftRunning) { ftPause(); } else { ftStart(); }
+}
+
+function ftStart() {
+  if (ftRemaining <= 0) return;
+  ftUpdateEndTime();
+  ftInterval = setInterval(() => {
+    ftRemaining--;
+    ftUpdateDisplay();
+    if (ftRemaining <= 0) {
+      clearInterval(ftInterval); ftInterval = null; ftRunning = false;
+      document.getElementById('ftPlayBtn').textContent = 'Play ▶';
+      document.getElementById('ftEnd').textContent = 'Time is up!';
+      window.api.sendNotification('Focus Timer', 'Time is up!');
+    }
+  }, 1000);
+  ftRunning = true;
+  document.getElementById('ftPlayBtn').textContent = 'Pause ⏸';
+}
+
+function ftPause() {
+  clearInterval(ftInterval); ftInterval = null; ftRunning = false;
+  document.getElementById('ftPlayBtn').textContent = 'Play ▶';
+}
+
 function initDragDrop() {
   const list = document.getElementById('todoList');
   list.addEventListener('dragstart', onDragStart);
@@ -740,6 +790,7 @@ function bindEvents() {
   document.getElementById('addTagBtn').addEventListener('click', addTag);
   document.getElementById('multiSelectBtn').addEventListener('click', toggleMultiSelect);
   document.getElementById('pomodoroBtn').addEventListener('click', openPomodoro);
+  document.getElementById('ftPlayBtn').addEventListener('click', ftToggle);
 
   document.getElementById('viewToggle').addEventListener('click', () => {
     calendarMode = !calendarMode;
@@ -809,6 +860,7 @@ function bindEvents() {
 
 // Global
 window.toggleTodo = toggleTodo; window.togglePin = togglePin; window.deleteTodo = deleteTodo;
+window.ftToggle = ftToggle;
 window.editTodo = editTodo; window.closeModal = closeModal; window.closeTagModal = closeTagModal;
 window.selectTagColor = selectTagColor; window.deleteTag = deleteTag;
 window.toggleTagOption = toggleTagOption; window.toggleSelect = toggleSelect;

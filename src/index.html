@@ -10,6 +10,21 @@
 <body>
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- Floating Focus Timer -->
+  <div class="floating-timer" id="floatingTimer">
+    <div class="timer-circle-wrap">
+      <svg class="progress-ring" width="120" height="120">
+        <circle class="ring-bg" cx="60" cy="60" r="54"></circle>
+        <circle class="ring-progress" id="ringProgress" cx="60" cy="60" r="54"></circle>
+      </svg>
+      <div class="time-display" id="ftTime">25:00</div>
+    </div>
+    <div class="timer-controls">
+      <button id="ftPlayBtn">Play ▶</button>
+    </div>
+    <div class="end-time-display" id="ftEnd">Ends at --:--</div>
+  </div>
+
   <div id="app">
     <header id="appHeader">
       <div class="header-left">
@@ -32,6 +47,11 @@
       <button class="ms-btn" onclick="bulkComplete()">✅ Complete</button>
       <button class="ms-btn" onclick="bulkDelete()">🗑️ Delete</button>
       <button class="ms-btn" onclick="bulkClearSelection()">✕ Cancel</button>
+    </div>
+
+    <!-- News Ticker -->
+    <div class="ticker-window">
+      <div class="ticker-train" id="todoTicker"></div>
     </div>
 
     <!-- Search -->
