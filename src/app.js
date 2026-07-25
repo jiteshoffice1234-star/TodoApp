@@ -116,7 +116,7 @@ function showToast(message, icon = '✓', duration = 3000, undoCallback = null) 
 // --- Render ---
 function renderAll() {
   if (calendarMode) { renderCalendar(); } else { renderTodos(); }
-  renderTagSelector(); renderTagList(); updateMeta();
+  renderTagSelector(); renderTagList(); updateMeta(); renderTicker();
 }
 
 function getFilteredTodos() {
@@ -138,6 +138,13 @@ function getFilteredTodos() {
     return b.createdAt - a.createdAt;
   });
   return list;
+}
+
+function renderTicker() {
+  const pending = data.todos.filter(t => !t.completed);
+  const items = pending.length ? pending.map(t => escapeHtml(t.title)) : ['No pending tasks — you are all caught up!'];
+  const doubled = items.concat(items);
+  document.getElementById('todoTicker').innerHTML = doubled.map(t => `<span class="ticker-item">${t}</span>`).join('');
 }
 
 function updateMeta() {
