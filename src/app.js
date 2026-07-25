@@ -61,6 +61,7 @@ function loadTheme() { darkMode = localStorage.getItem('darkMode') === 'true'; a
 function applyTheme() {
   document.body.classList.toggle('dark', darkMode);
   document.getElementById('themeToggle').textContent = darkMode ? '☀️' : '🌙';
+  if (pipActive) window.api.updatePipTheme(darkMode);
 }
 function toggleTheme() { darkMode = !darkMode; localStorage.setItem('darkMode', darkMode); applyTheme(); }
 async function persist() { await window.api.saveData(data); }
@@ -159,6 +160,7 @@ async function pipToggle() {
   pipActive = true;
   document.getElementById('pipBtn').textContent = '🔴';
   document.getElementById('pipBtn').title = 'Close Pop Out';
+  await window.api.updatePipTheme(darkMode);
   const html = getTickerHTML();
   if (html) await window.api.updatePip(html);
   pipInterval = setInterval(async () => {

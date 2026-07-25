@@ -203,3 +203,10 @@ ipcMain.handle('pip:update', (_, html) => {
   }
   return true;
 });
+
+ipcMain.handle('pip:theme', (_, isDark) => {
+  if (pipWindow && !pipWindow.isDestroyed()) {
+    pipWindow.webContents.executeJavaScript(`setTheme(${JSON.stringify(isDark)})`);
+  }
+  return true;
+});
