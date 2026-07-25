@@ -34,6 +34,11 @@
       <button class="ms-btn" onclick="bulkClearSelection()">✕ Cancel</button>
     </div>
 
+    <!-- News Ticker -->
+    <div class="ticker-window">
+      <div class="ticker-train" id="todoTicker"></div>
+    </div>
+
     <!-- Search -->
     <div class="search-bar">
       <span class="search-icon">🔍</span>
@@ -79,11 +84,6 @@
       <div class="empty-icon">📝</div>
       <h2 id="emptyTitle">No todos yet</h2>
       <p id="emptySubtitle">Click + to add your first todo</p>
-    </div>
-
-    <!-- News Ticker (fixed at bottom, persistent across views) -->
-    <div id="tickerWindow" class="ticker-window">
-      <div class="ticker-train" id="todoTicker"></div>
     </div>
 
     <button id="addBtn" class="fab" title="New Todo (N)">+</button>
