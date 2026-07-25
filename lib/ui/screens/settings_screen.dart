@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../core/theme/app_theme.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 
 class SettingsScreen extends StatelessWidget {
@@ -30,26 +31,32 @@ class SettingsScreen extends StatelessWidget {
                     style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: 16),
-                  // Theme mode
-                  ListTile(
-                    leading: Icon(
-                      themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                    ),
-                    title: const Text('Theme Mode'),
-                    subtitle: Text(
-                      themeProvider.isDarkMode ? 'Dark' : 'Light',
-                    ),
-                    trailing: Switch(
-                      value: themeProvider.isDarkMode,
-                      onChanged: (_) => themeProvider.toggleTheme(),
-                    ),
+                  Text(
+                    'Theme',
+                    style: theme.textTheme.labelLarge,
                   ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: ThemeOption.values.map((option) {
+                      final isSelected = themeProvider.themeOption == option;
+                      return ChoiceChip(
+                        label: Text('${option.emoji} ${option.label}'),
+                        selected: isSelected,
+                        onSelected: (_) => themeProvider.setTheme(option),
+                        showCheckmark: false,
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
                   const Divider(),
-                  // Accent color
+                  const SizedBox(height: 8),
                   ListTile(
                     leading: const Icon(Icons.palette),
                     title: const Text('Accent Color'),
-                    subtitle: const Text('Choose your accent color'),
+                    subtitle: const Text('Only for Light/Dark themes'),
+                    contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -104,13 +111,13 @@ class SettingsScreen extends StatelessWidget {
                   const ListTile(
                     leading: Icon(Icons.info_outline),
                     title: Text('Version'),
-                    subtitle: Text('3.1.0'),
+                    subtitle: Text('3.2.0'),
                   ),
                   const ListTile(
                     leading: Icon(Icons.star_outline),
                     title: Text('Features'),
                     subtitle: Text(
-                      'Recurring tasks, Subtasks, Calendar view, Pomodoro timer, '
+                      '6 themes, Recurring tasks, Subtasks, Calendar view, Pomodoro timer, '
                       'Multi-select, Rich text, Customizable themes',
                     ),
                   ),

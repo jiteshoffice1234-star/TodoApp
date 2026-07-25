@@ -7,7 +7,6 @@ build/
 
 # Node
 node_modules/
-package-lock.json
 
 # IDE
 .idea/
@@ -37,6 +36,25 @@ web/favicon.png
 
 # Build output
 dist/
+
+# Secrets & credentials
+.env
+.env.*
+google-services.json
+GoogleService-Info.plist
+lib/firebase_options.dart
+*.pem
+*.p12
+*.p8
+*.key
+*.cert
+*.mobileprovision
+
+# Editor temp files
+*~
+*.swp
+*.swo
+*.bak
 
 # Misc
 *.log

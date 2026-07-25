@@ -64,6 +64,10 @@ async function init() {
   initDragDrop();
   checkDueNotifications();
   setInterval(checkDueNotifications, 60000);
+  // Re-sync PiP when main window is shown again
+  window.api.onPipSync(() => { if (pipActive) window.api.updatePip(getTickerHTML()); });
+  // Auto-restore PiP if it was active before
+  restorePipState();
 }
 
 function loadTheme() { currentTheme = localStorage.getItem('theme') || 'light'; applyTheme(); }
@@ -194,6 +198,11 @@ async function pipClose() {
   await window.api.closePip();
   document.getElementById('pipBtn').textContent = '📺';
   document.getElementById('pipBtn').title = 'Pop Out Ticker';
+}
+
+async function restorePipState() {
+  const wasActive = await window.api.getPipState();
+  if (wasActive && !pipActive) pipToggle();
 }
 
 function renderTicker() {
@@ -779,7 +788,7 @@ function updatePriorityButtons() {
 }
 
 // --- Utils ---
-function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+function escapeHtml(text) { const div = document.createElement('div'); div.textContent = String(text); return div.innerHTML; }
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function formatDate(dateStr) { const d = new Date(dateStr + 'T00:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function setQuickDate(offset) { const d = new Date(); d.setDate(d.getDate() + offset); document.getElementById('todoDueDate').value = d.toISOString().split('T')[0]; }

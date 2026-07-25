@@ -23,6 +23,16 @@ function saveData(data) {
     console.error('Error saving data:', e);
   }
 }
+function saveSetting(key, value) {
+  const d = loadData();
+  if (!d.settings) d.settings = {};
+  d.settings[key] = value;
+  saveData(d);
+}
+function getSetting(key) {
+  const d = loadData();
+  return d.settings ? d.settings[key] : undefined;
+}
 
 function checkDueDates(data) {
   const today = new Date();
@@ -114,7 +124,35 @@ function getNextRecurringDate(recurring, baseDate) {
 
 let mainWindow;
 let pipWindow = null;
+let pipRestorePending = false;
 let pomodoroTimers = {};
+
+function openPipWindow() {
+  if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.focus(); return true; }
+  pipWindow = new BrowserWindow({
+    width: 500, height: 44, minWidth: 150, minHeight: 30, resizable: true, frame: false, alwaysOnTop: true,
+    skipTaskbar: true, backgroundColor: '#1a1a1a',
+    webPreferences: {
+      preload: path.join(__dirname, 'pip_preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  pipWindow.loadFile(path.join(__dirname, 'src', 'pip.html'));
+  pipWindow.setAlwaysOnTop(true, 'screen-saver');
+  pipWindow.on('closed', () => { pipWindow = null; });
+  return true;
+}
+function sendToPip(channel, ...args) {
+  if (!pipWindow || pipWindow.isDestroyed()) return;
+  if (pipWindow.webContents.isLoading()) {
+    pipWindow.webContents.once('did-finish-load', () => {
+      if (pipWindow && !pipWindow.isDestroyed()) pipWindow.webContents.send(channel, ...args);
+    });
+  } else {
+    pipWindow.webContents.send(channel, ...args);
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -140,9 +178,25 @@ function createWindow() {
     const data = loadData();
     processRecurring(data);
     const notices = checkDueDates(data);
-    saveData(data);  // save AFTER checkDueDates so reminderFired is persisted
+    saveData(data);
     for (const msg of notices) {
       new Notification({ title: 'Todo App', body: msg }).show();
+    }
+    if (getSetting('pipActive') && (!pipWindow || pipWindow.isDestroyed())) {
+      openPipWindow();
+    }
+  });
+
+  mainWindow.on('close', (e) => {
+    if (pipWindow && !pipWindow.isDestroyed()) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
+  mainWindow.on('show', () => {
+    if (pipWindow && !pipWindow.isDestroyed()) {
+      mainWindow.webContents.send('pip:sync');
     }
   });
 }
@@ -155,12 +209,18 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (pipWindow && !pipWindow.isDestroyed()) return;
   if (process.platform !== 'darwin') app.quit();
 });
 
 // IPC Handlers
 ipcMain.handle('get-data', () => loadData());
-ipcMain.handle('save-data', (_, data) => { saveData(data); return true; });
+ipcMain.handle('save-data', (_, data) => {
+  if (!data || typeof data !== 'object') return false;
+  if (!Array.isArray(data.todos) || !Array.isArray(data.tags)) return false;
+  if (typeof data.nextTodoId !== 'number' || typeof data.nextTagId !== 'number') return false;
+  saveData(data); return true;
+});
 
 ipcMain.handle('confirm-delete', (_, message) => {
   return dialog.showMessageBoxSync(mainWindow, {
@@ -180,33 +240,25 @@ ipcMain.handle('get-data-path', () => DATA_DIR);
 
 // PiP window
 ipcMain.handle('pip:open', () => {
-  if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.focus(); return true; }
-  pipWindow = new BrowserWindow({
-    width: 500, height: 44, minWidth: 150, minHeight: 30, resizable: true, frame: false, alwaysOnTop: true,
-    skipTaskbar: true, backgroundColor: '#1a1a1a',
-    webPreferences: { contextIsolation: false, nodeIntegration: false },
-  });
-  pipWindow.loadFile(path.join(__dirname, 'src', 'pip.html'));
-  pipWindow.setAlwaysOnTop(true, 'screen-saver');
-  pipWindow.on('closed', () => { pipWindow = null; });
-  return true;
+  const ok = openPipWindow();
+  if (ok) saveSetting('pipActive', true);
+  return ok;
 });
 
 ipcMain.handle('pip:close', () => {
   if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.close(); pipWindow = null; }
+  saveSetting('pipActive', false);
   return true;
 });
 
 ipcMain.handle('pip:update', (_, html) => {
-  if (pipWindow && !pipWindow.isDestroyed()) {
-    pipWindow.webContents.executeJavaScript(`setContent(${JSON.stringify(html)})`);
-  }
+  sendToPip('pip:set-content', html);
   return true;
 });
 
 ipcMain.handle('pip:theme', (_, theme) => {
-  if (pipWindow && !pipWindow.isDestroyed()) {
-    pipWindow.webContents.executeJavaScript(`setTheme(${JSON.stringify(theme)})`);
-  }
+  sendToPip('pip:set-theme', theme);
   return true;
 });
+
+ipcMain.handle('pip:state', () => getSetting('pipActive'));

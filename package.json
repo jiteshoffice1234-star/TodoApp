@@ -4,7 +4,6 @@
   "description": "A full-featured Todo app",
   "main": "main.js",
   "author": "TodoApp",
-  "license": "MIT",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win",

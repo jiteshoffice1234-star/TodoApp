@@ -45,9 +45,9 @@ class _TodoAppState extends State<TodoApp> {
           return MaterialApp(
             title: 'Todo App',
             debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(accentColor: themeProvider.accentColor),
-            darkTheme: AppTheme.dark(accentColor: themeProvider.accentColor),
-            themeMode: themeProvider.themeMode,
+            theme: themeProvider.themeData,
+            darkTheme: themeProvider.themeData,
+            themeMode: ThemeMode.light,
             home: const HomeScreen(),
           );
         },

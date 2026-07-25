@@ -13,6 +13,7 @@ import 'add_edit_todo_screen.dart';
 import 'categories_screen.dart';
 import 'stats_screen.dart';
 import 'backup_screen.dart';
+import 'help_screen.dart';
 import 'calendar_screen.dart';
 import 'pomodoro_screen.dart';
 import 'settings_screen.dart';
@@ -91,10 +92,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ] else ...[
             IconButton(
-              icon: Icon(
-                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+              icon: Text(
+                themeProvider.themeOption.emoji,
+                style: const TextStyle(fontSize: 22),
+              ),
               onPressed: () => themeProvider.toggleTheme(),
-              tooltip: 'Toggle theme',
+              tooltip: 'Theme: ${themeProvider.themeOption.label}',
             ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
@@ -143,6 +146,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   case 'settings':
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                    break;
+                  case 'help':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const HelpScreen()),
                     );
                     break;
                   case 'multiSelect':
@@ -254,6 +262,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(Icons.settings),
                       SizedBox(width: 8),
                       Text('Settings'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'help',
+                  child: Row(
+                    children: [
+                      Icon(Icons.help_outline),
+                      SizedBox(width: 8),
+                      Text('Help'),
                     ],
                   ),
                 ),
