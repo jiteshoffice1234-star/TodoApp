@@ -51,11 +51,6 @@ dependencies:
   
   # Feature: Voice Input
   speech_to_text: 7.4.0
-  
-  # Feature: Cloud Sync
-  firebase_core: ^5.0.0
-  firebase_auth: ^5.0.0
-  cloud_firestore: ^6.0.0
   connectivity_plus: ^6.0.3
   
   # Feature: Markdown Notes
