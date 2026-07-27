@@ -217,7 +217,31 @@
       <p id="emptySubtitle">Click + to add your first todo</p>
     </div>
 
-    <button id="addBtn" class="fab" title="New Todo (N)">+</button>
+    <!-- Speed Dial FAB -->
+    <div id="speedDial" class="speed-dial">
+      <div id="speedDialBackdrop" class="speed-dial-backdrop hidden" onclick="closeSpeedDial()"></div>
+      <div id="speedDialActions" class="speed-dial-actions hidden">
+        <button class="sd-action" onclick="closeSpeedDial();openAddModal()" title="New Todo">
+          <span class="sd-action-icon">✏️</span>
+          <span class="sd-action-label">New Todo</span>
+        </button>
+        <button class="sd-action" onclick="closeSpeedDial();document.getElementById('quickAddInput').focus()" title="Quick Add">
+          <span class="sd-action-icon">⚡</span>
+          <span class="sd-action-label">Quick Add</span>
+        </button>
+        <button class="sd-action" onclick="closeSpeedDial();openPomodoro()" title="Focus Mode">
+          <span class="sd-action-icon">🍅</span>
+          <span class="sd-action-label">Focus</span>
+        </button>
+        <button class="sd-action" onclick="closeSpeedDial();openMoodModal()" title="Log Mood">
+          <span class="sd-action-icon">🌊</span>
+          <span class="sd-action-label">Mood</span>
+        </button>
+      </div>
+      <button id="addBtn" class="fab" title="New Todo (N)">
+        <span id="fabIcon" class="fab-icon">+</span>
+      </button>
+    </div>
 
     <div id="shortcutHint" class="shortcut-hint">
       <kbd>N</kbd> New · <kbd>/</kbd> Search · <kbd>V</kbd> Views · <kbd>Esc</kbd> Close

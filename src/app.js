@@ -374,6 +374,35 @@ function updateMeta() {
   document.getElementById('clearCompleted').classList.toggle('hidden', done === 0);
 }
 
+// --- Speed Dial ---
+function toggleSpeedDial() {
+  const dial = document.getElementById('speedDial');
+  const actions = document.getElementById('speedDialActions');
+  const backdrop = document.getElementById('speedDialBackdrop');
+  const isOpen = !actions.classList.contains('hidden');
+  if (!isOpen) {
+    actions.classList.remove('hidden');
+    backdrop.classList.remove('hidden');
+    dial.classList.add('open');
+    // Re-trigger animations by resetting display
+    document.querySelectorAll('.sd-action').forEach((el, i) => {
+      el.style.animation = 'none';
+      el.offsetHeight; // force reflow
+      el.style.animation = '';
+    });
+  } else {
+    closeSpeedDial();
+  }
+}
+function closeSpeedDial() {
+  const dial = document.getElementById('speedDial');
+  const actions = document.getElementById('speedDialActions');
+  const backdrop = document.getElementById('speedDialBackdrop');
+  actions.classList.add('hidden');
+  backdrop.classList.add('hidden');
+  dial.classList.remove('open');
+}
+
 function renderTodos() {
   const list = getFilteredTodos();
   const container = document.getElementById('todoList');
@@ -1518,7 +1547,7 @@ function setQuickDate(offset) { const d = new Date(); d.setDate(d.getDate() + of
 
 // --- Events ---
 function bindEvents() {
-  document.getElementById('addBtn').addEventListener('click', openAddModal);
+  document.getElementById('addBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleSpeedDial(); });
   document.getElementById('saveBtn').addEventListener('click', saveTodo);
   document.getElementById('themeToggle').addEventListener('click', toggleTheme);
   document.getElementById('pipBtn').addEventListener('click', pipToggle);
@@ -1605,15 +1634,17 @@ function bindEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      closeSpeedDial();
       document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
     }
-    if ((e.key === 'n' || e.key === 'N') && !e.target.matches('input, textarea, select')) { e.preventDefault(); openAddModal(); }
+    if ((e.key === 'n' || e.key === 'N') && !e.target.matches('input, textarea, select')) { e.preventDefault(); toggleSpeedDial(); }
     if (e.key === '/' && !e.target.matches('input, textarea, select')) { e.preventDefault(); document.getElementById('searchInput').focus(); }
     if ((e.key === 'v' || e.key === 'V') && !e.target.matches('input, textarea, select')) { e.preventDefault(); cycleView(); }
   });
 }
 
 // Global
+window.toggleSpeedDial = toggleSpeedDial; window.closeSpeedDial = closeSpeedDial;
 window.toggleTodo = toggleTodo; window.togglePin = togglePin; window.deleteTodo = deleteTodo;
 window.editTodo = editTodo; window.closeModal = closeModal; window.closeTagModal = closeTagModal;
 window.selectTagColor = selectTagColor; window.deleteTag = deleteTag;
