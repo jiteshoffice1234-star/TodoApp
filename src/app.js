@@ -3,7 +3,7 @@ const COLORS = [
   '#8E24AA', '#FF4081', '#00ACC1', '#6D4C41', '#546E7A', '#6200EE'
 ];
 
-let data = { todos: [], tags: [], nextTodoId: 1, nextTagId: 1, deletedTodos: [], settings: {}, smartLists: [], focusSessions: [] };
+let data = { todos: [], tags: [], nextTodoId: 1, nextTagId: 1, deletedTodos: [], settings: {}, smartLists: [], focusSessions: [], moodEntries: [] };
 let currentFilter = 'all';
 let searchQuery = '';
 let editingTodoId = null;
@@ -20,10 +20,12 @@ const THEMES = [
   { id: 'minimal', icon: '⚪', label: 'Minimal' },
   { id: 'clay', icon: '🏺', label: 'Clay' },
 ];
+const VIEWS = ['list', 'calendar', 'board', 'timeline', 'dashboard'];
+const VIEW_LABELS = { list: '📋 List', calendar: '📅 Calendar', board: '🗂 Board', timeline: '📊 Timeline', dashboard: '📈 Dashboard' };
+let currentView = 'list';
 let multiSelectMode = false;
 let selectedIds = new Set();
 let notifiedTodos = new Set();
-let calendarMode = false;
 let calYear, calMonth;
 let editingSubtasks = [];
 
@@ -56,7 +58,9 @@ async function init() {
     if (t.reminderAt === undefined) t.reminderAt = null;
     if (t.reminderFired === undefined) t.reminderFired = false;
     if (t.sortOrder === undefined) t.sortOrder = 0;
+    if (t.status === undefined) t.status = 'todo';
   }
+  if (!data.moodEntries) data.moodEntries = [];
   const now = new Date();
   calYear = now.getFullYear();
   calMonth = now.getMonth();
@@ -161,6 +165,13 @@ function getDefaultSmartLists() {
     { id: 'pending', name: 'Pending', icon: '📋', filter: 'pending', search: '', tagIds: [], builtin: true },
   ];
 }
+function applySmartListById(id) {
+  const defaults = getDefaultSmartLists();
+  const user = (data.smartLists || []).filter(s => !s.builtin);
+  const all = defaults.concat(user);
+  const sl = all.find(s => s.id === id);
+  if (sl) applySmartList(sl);
+}
 function applySmartList(sl) {
   activeSmartListId = sl.id;
   currentFilter = sl.filter || 'all';
@@ -207,7 +218,7 @@ function renderSmartLists() {
   container.innerHTML = all.map(sl => {
     const active = activeSmartListId === sl.id ? 'active' : '';
     const delBtn = sl.builtin ? '' : `<button class="sl-del" onclick="event.stopPropagation();deleteSmartList('${sl.id}')" title="Delete">✕</button>`;
-    return `<div class="sl-chip ${active}" onclick="applySmartList(${JSON.stringify(sl).replace(/"/g, '&quot;')})">
+    return `<div class="sl-chip ${active}" data-sl-id="${sl.id}" onclick="applySmartListById('${sl.id}')">
       <span>${sl.icon} ${escapeHtml(sl.name)}</span>${delBtn}
     </div>`;
   }).join('');
@@ -215,8 +226,34 @@ function renderSmartLists() {
 
 // --- Render ---
 function renderAll() {
-  if (calendarMode) { renderCalendar(); } else { renderTodos(); }
+  // Hide all view containers
+  ['todoList','calendarView','boardView','timelineView','dashboardView','emptyState'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  // Show current view
+  const vi = document.getElementById('viewIndicator');
+  if (vi) {
+    vi.innerHTML = `<span class="vi-badge">${VIEW_LABELS[currentView]}</span>`;
+  }
+  switch (currentView) {
+    case 'list': renderTodos(); break;
+    case 'calendar': renderCalendar(); break;
+    case 'board': renderBoard(); break;
+    case 'timeline': renderTimeline(); break;
+    case 'dashboard': renderDashboard(); break;
+    default: renderTodos();
+  }
   renderTagSelector(); renderTagList(); updateMeta(); renderTicker(); renderSmartLists();
+  renderMoodWidget();
+}
+
+function cycleView() {
+  const idx = VIEWS.indexOf(currentView);
+  currentView = VIEWS[(idx + 1) % VIEWS.length];
+  document.getElementById('viewToggle').textContent = VIEW_LABELS[currentView].split(' ')[0];
+  renderAll();
+  showToast(`View: ${VIEW_LABELS[currentView]}`, '🔄');
 }
 
 function getFilteredTodos() {
@@ -253,8 +290,8 @@ function getTickerHTML() {
     const icon = PIP_PRIORITY_ICONS[t.priority] || '🎯';
     const title = escapeHtml(t.title);
     const overdue = t.dueDate && t.dueDate < new Date().toISOString().split('T')[0];
-    const badge = overdue ? '⚠️' : '';
-    return `<span class="todo-item">${icon} ${title}${badge}</span>`;
+    const badge = overdue ? ' ⚠️' : '';
+    return `<span class="ticker-item">${icon} ${title}${badge}</span>`;
   });
   // Duplicate for seamless scrolling
   const doubled = items.concat(items);
@@ -392,7 +429,7 @@ function renderTodos() {
     const selCheck = multiSelectMode ? `<div class="todo-select-check ${selClass}" onclick="event.stopPropagation();toggleSelect(${todo.id})">${selectedIds.has(todo.id) ? '☑️' : '⬜'}</div>` : '';
 
     // Drag handle
-    const dragHandle = `<span class="drag-handle" draggable="true" data-id="${todo.id}">⠿</span>`;
+    const dragHandle = `<span class="drag-handle" draggable="true" data-id="${todo.id}">⋮⋮</span>`;
 
     return `
       <div class="todo-card ${todo.completed ? 'completed' : ''} ${todo.pinned ? 'pinned' : ''} ${selClass}" data-id="${todo.id}" style="animation-delay:${idx * 40}ms" onclick="${multiSelectMode ? `toggleSelect(${todo.id})` : `editTodo(${todo.id})`}">
@@ -414,6 +451,344 @@ function renderTodos() {
       </div>`;
   }).join('');
 }
+
+// ===== BOARD VIEW =====
+function renderBoard() {
+  const board = document.getElementById('boardView');
+  board.classList.remove('hidden');
+  const todoList = data.todos.filter(t => t.status === 'todo' || (!t.status && !t.completed));
+  const progressList = data.todos.filter(t => t.status === 'in_progress');
+  const doneList = data.todos.filter(t => t.status === 'done' || t.completed);
+  document.getElementById('boardCountTodo').textContent = todoList.length;
+  document.getElementById('boardCountProgress').textContent = progressList.length;
+  document.getElementById('boardCountDone').textContent = doneList.length;
+  renderBoardList('todo', todoList);
+  renderBoardList('progress', progressList);
+  renderBoardList('done', doneList);
+}
+function renderBoardList(col, items) {
+  const el = document.getElementById('boardList' + capitalize(col));
+  if (!el) return;
+  if (items.length === 0) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">Drop tasks here</div>'; return; }
+  el.innerHTML = items.map(t => {
+    const tagColors = (t.tagIds || []).map(id => { const tag = data.tags.find(x => x.id === id); return tag ? tag.color : null; }).filter(Boolean);
+    const tagDots = tagColors.slice(0, 3).map(c => `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c}"></span>`).join('');
+    const overdue = t.dueDate && t.dueDate < new Date().toISOString().split('T')[0] && !t.completed;
+    return `<div class="board-card ${t.completed ? 'completed' : ''}" draggable="true" data-id="${t.id}"
+      ondragstart="onBoardCardDragStart(event,${t.id})"
+      onclick="editTodo(${t.id})">
+      <div class="bc-title">${escapeHtml(t.title)}</div>
+      <div class="bc-meta">
+        <span class="bc-priority priority-${t.priority}">${capitalize(t.priority)}</span>
+        ${tagDots}
+        ${t.dueDate ? `<span>📅 ${formatDate(t.dueDate)}${overdue ? ' ⚠️' : ''}</span>` : ''}
+        ${t.subtasks && t.subtasks.length ? `<span>📋 ${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+let boardDragId = null;
+function onBoardCardDragStart(e, id) {
+  boardDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id.toString());
+  const card = e.target.closest('.board-card');
+  if (card) setTimeout(() => card.classList.add('dragging'), 0);
+}
+function onBoardDrop(e, status) {
+  e.preventDefault();
+  document.querySelectorAll('.board-list').forEach(el => el.classList.remove('drag-over'));
+  if (!boardDragId) return;
+  const todo = data.todos.find(t => t.id === boardDragId);
+  if (!todo) return;
+  todo.status = status;
+  if (status === 'done' && !todo.completed) { todo.completed = true; todo.updatedAt = Date.now(); }
+  if (status !== 'done' && todo.completed) { todo.completed = false; todo.updatedAt = Date.now(); }
+  boardDragId = null;
+  persist(); renderAll();
+}
+
+// ===== TIMELINE =====
+function getTimelineEvents() {
+  const events = [];
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  // Todo completions (last 7 days)
+  for (const t of data.todos) {
+    if (t.updatedAt && t.completed) {
+      const d = new Date(t.updatedAt);
+      const daysAgo = Math.floor((now - d) / 86400000);
+      if (daysAgo <= 7) {
+        events.push({ type: 'complete', time: d.getTime(), todo: t, dateStr: d.toISOString().split('T')[0], title: t.title });
+      }
+    }
+    if (t.createdAt) {
+      const d = new Date(t.createdAt);
+      const daysAgo = Math.floor((now - d) / 86400000);
+      if (daysAgo <= 7) {
+        events.push({ type: 'create', time: d.getTime(), todo: t, dateStr: d.toISOString().split('T')[0], title: t.title });
+      }
+    }
+    // Overdue
+    if (t.dueDate && t.dueDate < todayStr && !t.completed) {
+      const d = new Date(t.dueDate + 'T00:00:00');
+      const daysAgo = Math.floor((now - d) / 86400000);
+      if (daysAgo <= 7) {
+        events.push({ type: 'overdue', time: d.getTime(), todo: t, dateStr: t.dueDate, title: t.title });
+      }
+    }
+  }
+  // Focus sessions (last 7 days)
+  for (const s of (data.focusSessions || [])) {
+    const d = new Date(s.startedAt);
+    const daysAgo = Math.floor((now - d) / 86400000);
+    if (daysAgo <= 7) {
+      const todoName = s.todoId ? (data.todos.find(t => t.id === s.todoId)?.title || 'Unknown') : 'Focus';
+      events.push({ type: 'focus', time: d.getTime(), dateStr: d.toISOString().split('T')[0], title: todoName, duration: s.durationMinutes });
+    }
+  }
+  // Mood entries
+  for (const m of (data.moodEntries || [])) {
+    const d = new Date(m.timestamp);
+    const daysAgo = Math.floor((now - d) / 86400000);
+    if (daysAgo <= 7) {
+      events.push({ type: 'mood', time: d.getTime(), dateStr: d.toISOString().split('T')[0], rating: m.rating });
+    }
+  }
+  events.sort((a, b) => b.time - a.time);
+  return events;
+}
+function renderTimeline() {
+  const tl = document.getElementById('timelineView');
+  tl.classList.remove('hidden');
+  const events = getTimelineEvents();
+  const content = document.getElementById('tlContent');
+  if (events.length === 0) {
+    content.innerHTML = '<div class="tl-empty">📭 No activity yet this week. Start adding and completing tasks!</div>';
+    return;
+  }
+  // Group by date
+  const groups = {};
+  const moods = {};
+  for (const m of (data.moodEntries || [])) {
+    const d = new Date(m.timestamp);
+    const ds = d.toISOString().split('T')[0];
+    moods[ds] = m.rating;
+  }
+  for (const e of events) {
+    if (!groups[e.dateStr]) groups[e.dateStr] = [];
+    groups[e.dateStr].push(e);
+  }
+  const dateLabels = { '0': 'Today', '1': 'Yesterday' };
+  let html = '';
+  const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  for (const dateStr of sortedDates) {
+    const diff = Math.floor((new Date(todayStr + 'T00:00:00') - new Date(dateStr + 'T00:00:00')) / 86400000);
+    const label = dateLabels[diff] || formatDate(dateStr);
+    html += `<div class="tl-group"><div class="tl-group-title">${label}</div>`;
+    // Mood for this day
+    if (moods[dateStr]) {
+      const moodEmojis = ['','😢','😕','😐','😊','😁'];
+      html += `<div class="tl-item" style="animation-delay:0ms"><span class="tl-icon">${moodEmojis[moods[dateStr]]}</span><div class="tl-text">Felt <strong>${['','Bad','Meh','Okay','Good','Amazing'][moods[dateStr]]}</strong> today</div><span class="tl-time"></span></div>`;
+    }
+    const dayEvents = groups[dateStr];
+    dayEvents.forEach((e, i) => {
+      const icons = { complete: '✅', create: '✨', focus: '🍅', overdue: '⚠️', mood: '😊' };
+      const dots = { complete: 'tl-dot complete', create: 'tl-dot create', focus: 'tl-dot focus', overdue: 'tl-dot overdue', mood: 'tl-dot mood' };
+      let text = '';
+      if (e.type === 'complete') text = `Completed <strong>${escapeHtml(e.title)}</strong> 🎉`;
+      else if (e.type === 'create') text = `Created <strong>${escapeHtml(e.title)}</strong>`;
+      else if (e.type === 'focus') text = `Focused <strong>${e.duration}min</strong> on ${escapeHtml(e.title)} 🍅`;
+      else if (e.type === 'overdue') text = `<strong>${escapeHtml(e.title)}</strong> is overdue! ⚠️`;
+      const time = e.time ? new Date(e.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      html += `<div class="tl-item" style="animation-delay:${i * 30}ms">
+        <span class="${dots[e.type]}"></span>
+        <span class="tl-icon">${icons[e.type] || '•'}</span>
+        <div class="tl-text">${text}</div>
+        <span class="tl-time">${time}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  content.innerHTML = html;
+}
+
+// ===== DASHBOARD =====
+function computeWeeklyStats() {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().split('T')[0];
+  const weekTodos = data.todos.filter(t => t.updatedAt >= weekAgo.getTime() || t.createdAt >= weekAgo.getTime());
+  const completedWeek = weekTodos.filter(t => t.completed && t.updatedAt >= weekAgo.getTime());
+  const createdWeek = weekTodos.filter(t => t.createdAt >= weekAgo.getTime());
+  const completionRate = weekTodos.length > 0 ? Math.round((completedWeek.length / weekTodos.length) * 100) : 0;
+  const focusTotal = (data.focusSessions || [])
+    .filter(s => s.startedAt >= weekAgo.getTime() && s.completed)
+    .reduce((sum, s) => sum + s.durationMinutes, 0);
+  // Streak
+  let streak = 0;
+  const checkDate = new Date(now);
+  while (true) {
+    const ds = checkDate.toISOString().split('T')[0];
+    const dayTodos = data.todos.filter(t => {
+      if (!t.completed || !t.updatedAt) return false;
+      const d = new Date(t.updatedAt);
+      return d.toISOString().split('T')[0] === ds;
+    });
+    const dayFocus = (data.focusSessions || []).filter(s => {
+      const d = new Date(s.startedAt);
+      return d.toISOString().split('T')[0] === ds && s.completed;
+    });
+    if (dayTodos.length > 0 || dayFocus.length > 0) { streak++; checkDate.setDate(checkDate.getDate() - 1); }
+    else break;
+  }
+  // 7-day chart data
+  const chartData = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    const ds = d.toISOString().split('T')[0];
+    const dayTodos = data.todos.filter(t => {
+      if (!t.completed || !t.updatedAt) return false;
+      const td = new Date(t.updatedAt);
+      return td.toISOString().split('T')[0] === ds;
+    }).length;
+    const dayFocus = (data.focusSessions || [])
+      .filter(s => {
+        const sd = new Date(s.startedAt);
+        return sd.toISOString().split('T')[0] === ds && s.completed;
+      })
+      .reduce((sum, s) => sum + s.durationMinutes, 0);
+    chartData.push({ date: ds, label: d.toLocaleDateString('en', { weekday: 'short' }), todos: dayTodos, focus: dayFocus, isToday: i === 0 });
+  }
+  // Top tags
+  const tagCounts = {};
+  for (const t of completedWeek) {
+    for (const tid of (t.tagIds || [])) {
+      tagCounts[tid] = (tagCounts[tid] || 0) + 1;
+    }
+  }
+  const topTags = Object.entries(tagCounts)
+    .map(([id, count]) => ({ tag: data.tags.find(t => t.id === parseInt(id)), count }))
+    .filter(x => x.tag)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  return { completionRate, completedCount: completedWeek.length, totalCount: weekTodos.length, focusTotal, createdCount: createdWeek.length, streak, chartData, topTags };
+}
+function animateCounter(el, target, suffix = '') {
+  let current = 0;
+  const step = Math.max(1, Math.ceil(target / 30));
+  const interval = setInterval(() => {
+    current += step;
+    if (current >= target) { current = target; clearInterval(interval); }
+    el.textContent = (typeof target === 'number' && target > 0 && target < 1) ? target + suffix : current + suffix;
+  }, 30);
+}
+function renderDashboard() {
+  const db = document.getElementById('dashboardView');
+  db.classList.remove('hidden');
+  const stats = computeWeeklyStats();
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  document.getElementById('dashWeek').textContent = `${weekStart.toLocaleDateString('en',{month:'short',day:'numeric'})} - ${now.toLocaleDateString('en',{month:'short',day:'numeric'})}`;
+  animateCounter(document.getElementById('dashCompletionVal'), stats.completionRate, '%');
+  const focusMin = stats.focusTotal;
+  document.getElementById('dashFocusVal').textContent = focusMin >= 60 ? `${Math.round(focusMin/60)}h ${focusMin%60}m` : `${focusMin}m`;
+  animateCounter(document.getElementById('dashStreakVal'), stats.streak);
+  animateCounter(document.getElementById('dashCreatedVal'), stats.createdCount);
+  // Chart
+  const maxVal = Math.max(...stats.chartData.map(d => d.todos + Math.round(d.focus / 5)), 1);
+  document.getElementById('dashChart').innerHTML = stats.chartData.map(d => {
+    const height = Math.max(4, ((d.todos + Math.round(d.focus / 5)) / maxVal) * 100);
+    return `<div class="dash-bar-wrap">
+      <span class="dash-bar-value">${d.todos}✓${d.focus > 0 ? ' ' + Math.round(d.focus/25) + '🍅' : ''}</span>
+      <div class="dash-bar ${d.isToday ? 'today' : ''}" style="height:${height}%;animation-delay:${stats.chartData.indexOf(d) * 60}ms"></div>
+      <span class="dash-bar-label">${d.label}</span>
+    </div>`;
+  }).join('');
+  // Top tags
+  const tagsEl = document.getElementById('dashTags');
+  if (stats.topTags.length === 0) {
+    tagsEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No tags used this week</p>';
+  } else {
+    tagsEl.innerHTML = stats.topTags.map(t =>
+      `<div class="dash-tag-item">
+        <span class="tag-dot" style="background:${t.tag.color};width:10px;height:10px;display:inline-block;border-radius:50%;"></span>
+        ${escapeHtml(t.tag.name)}
+        <span class="dash-tag-count">${t.count}</span>
+      </div>`
+    ).join('');
+  }
+  // Mood correlation
+  const latestMoods = (data.moodEntries || []).slice(-5).reverse();
+  const moodEl = document.getElementById('dashMood');
+  if (latestMoods.length === 0) {
+    moodEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Log your mood with the 😊 button to see patterns</p>';
+  } else {
+    const avg = Math.round(latestMoods.reduce((s, m) => s + m.rating, 0) / latestMoods.length * 10) / 10;
+    const moodEmojis = ['','😢','😕','😐','😊','😁'];
+    const moodLabels = ['','Bad','Meh','Okay','Good','Amazing'];
+    moodEl.innerHTML = `<span class="dash-mood-avg">${moodEmojis[Math.round(avg)]}</span>
+      <div class="dash-mood-text">
+        <div style="font-weight:600;">${moodLabels[Math.round(avg)] || 'Okay'} (${avg})</div>
+        <div class="dash-mood-label">Average mood this week</div>
+      </div>
+      <div class="dash-mood-bar">
+        ${[1,2,3,4,5].map(r => `<div class="dash-mood-dot ${r <= Math.round(avg) ? 'filled' : ''}" style="background:${['#ef5350','#FFA726','#FDD835','#66BB6A','#43A047'][r-1]}"></div>`).join('')}
+      </div>`;
+  }
+}
+
+// ===== MOOD TRACKER =====
+function logMood(rating) {
+  if (!data.moodEntries) data.moodEntries = [];
+  data.moodEntries.push({ timestamp: Date.now(), rating });
+  persist(); renderMoodWidget();
+  const emojis = ['','😢','😕','😐','😊','😁'];
+  const labels = ['','Bad','Meh','Okay','Good','Amazing'];
+  showToast(`Feeling ${labels[rating]} ${emojis[rating]}`, '🌊');
+  // Hide picker
+  document.getElementById('moodPicker').classList.add('hidden');
+}
+function getTodayMood() {
+  const today = new Date().toISOString().split('T')[0];
+  const todayEntries = (data.moodEntries || []).filter(m => {
+    const d = new Date(m.timestamp);
+    return d.toISOString().split('T')[0] === today;
+  });
+  if (todayEntries.length === 0) return null;
+  return todayEntries[todayEntries.length - 1].rating;
+}
+function renderMoodWidget() {
+  const emoji = document.getElementById('moodEmoji');
+  const todayMood = getTodayMood();
+  const emojis = ['😊','😢','😕','😐','😊','😁'];
+  emoji.textContent = todayMood ? emojis[todayMood] : '😊';
+}
+function toggleMoodPicker() {
+  const picker = document.getElementById('moodPicker');
+  picker.classList.toggle('hidden');
+}
+function renderMoodHistory() {
+  const el = document.getElementById('moodHistory');
+  const entries = (data.moodEntries || []).slice().reverse().slice(0, 14);
+  if (entries.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:14px;padding:20px;">No mood entries yet. Tap the 😊 button to log your mood!</p>';
+    return;
+  }
+  const emojis = ['','😢','😕','😐','😊','😁'];
+  const labels = ['','Bad','Meh','Okay','Good','Amazing'];
+  el.innerHTML = entries.map(m => {
+    const d = new Date(m.timestamp);
+    return `<div class="mood-entry">
+      <span class="mood-entry-emoji">${emojis[m.rating]}</span>
+      <span>${labels[m.rating]}</span>
+      <span class="mood-entry-date">${d.toLocaleDateString('en',{month:'short',day:'numeric'})} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+    </div>`;
+  }).join('');
+}
+function openMoodModal() { document.getElementById('moodModal').classList.remove('hidden'); renderMoodHistory(); }
+function closeMoodModal() { document.getElementById('moodModal').classList.add('hidden'); }
 
 // --- Calendar ---
 function renderCalendar() {
@@ -771,6 +1146,108 @@ function onDragEnd() {
   dragId = null; dragEl = null;
 }
 
+// ===== SMART QUICK ADD =====
+function parseNaturalLanguage(text) {
+  const result = { title: text, dueDate: null, priority: 'medium', tags: [] };
+  let remaining = text;
+  // Date patterns
+  const datePatterns = [
+    { regex: /\b(today)\b/i, offset: 0 },
+    { regex: /\b(tomorrow)\b/i, offset: 1 },
+    { regex: /\b(next week)\b/i, offset: 7 },
+    { regex: /\b(monday|mon)\b/i, offset: (getNextWeekday(1) - new Date().getDate() + 28) % 28 || 7 },
+    { regex: /\b(tuesday|tue)\b/i, offset: (getNextWeekday(2) - new Date().getDate() + 28) % 28 || 7 },
+    { regex: /\b(wednesday|wed)\b/i, offset: (getNextWeekday(3) - new Date().getDate() + 28) % 28 || 7 },
+    { regex: /\b(thursday|thu)\b/i, offset: (getNextWeekday(4) - new Date().getDate() + 28) % 28 || 7 },
+    { regex: /\b(friday|fri)\b/i, offset: (getNextWeekday(5) - new Date().getDate() + 28) % 28 || 7 },
+    { regex: /\b(saturday|sat)\b/i, offset: (getNextWeekday(6) - new Date().getDate() + 28) % 28 || 7 },
+    { regex: /\b(sunday|sun)\b/i, offset: (getNextWeekday(0) - new Date().getDate() + 28) % 28 || 7 },
+  ];
+  for (const p of datePatterns) {
+    const m = remaining.match(p.regex);
+    if (m) {
+      const d = new Date(); d.setDate(d.getDate() + (p.offset || 0));
+      result.dueDate = d.toISOString().split('T')[0];
+      remaining = remaining.replace(m[0], '').trim();
+      break;
+    }
+  }
+  const dateRegex = /\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/;
+  const dm = remaining.match(dateRegex);
+  if (dm && !result.dueDate) {
+    const month = parseInt(dm[1]) - 1; const day = parseInt(dm[2]);
+    let year = dm[3] ? parseInt(dm[3]) : new Date().getFullYear();
+    if (year < 100) year += 2000;
+    const d = new Date(year, month, day);
+    if (d > new Date()) { result.dueDate = d.toISOString().split('T')[0]; remaining = remaining.replace(dm[0], '').trim(); }
+  }
+  // Priority
+  const priorityMatch = remaining.match(/\b(high|medium|low)\b/i);
+  if (priorityMatch) {
+    result.priority = priorityMatch[1].toLowerCase();
+    remaining = remaining.replace(priorityMatch[0], '').trim();
+  }
+  // Tags (#hashtag)
+  const tagRegex = /#(\w+)/g;
+  let tagMatch;
+  while ((tagMatch = tagRegex.exec(remaining)) !== null) {
+    result.tags.push(tagMatch[1].toLowerCase());
+  }
+  remaining = remaining.replace(/#\w+/g, '').trim();
+  result.title = remaining || result.title;
+  return result;
+}
+function getNextWeekday(day) {
+  const d = new Date();
+  const current = d.getDay();
+  const diff = (day - current + 7) % 7;
+  return d.getDate() + (diff === 0 ? 7 : diff);
+}
+function updateQuickAddPreview() {
+  const input = document.getElementById('quickAddInput');
+  const preview = document.getElementById('quickAddPreview');
+  const chips = document.getElementById('quickAddChips');
+  const text = input.value.trim();
+  if (!text) { preview.classList.add('hidden'); return; }
+  const parsed = parseNaturalLanguage(text);
+  let chipHtml = `<span class="qa-chip qa-chip-title">📝 ${escapeHtml(parsed.title)}</span>`;
+  if (parsed.dueDate) chipHtml += `<span class="qa-chip qa-chip-date">📅 ${formatDate(parsed.dueDate)}</span>`;
+  chipHtml += `<span class="qa-chip qa-chip-priority ${parsed.priority}">${parsed.priority === 'high' ? '🔴' : parsed.priority === 'medium' ? '🟠' : '🟢'} ${capitalize(parsed.priority)}</span>`;
+  for (const tag of parsed.tags) {
+    const existingTag = data.tags.find(t => t.name.toLowerCase() === tag);
+    const color = existingTag ? existingTag.color : 'var(--primary)';
+    chipHtml += `<span class="qa-chip qa-chip-tag" style="--tag-color:${color}">#${escapeHtml(tag)}</span>`;
+  }
+  chips.innerHTML = chipHtml;
+  preview.classList.remove('hidden');
+}
+function quickAddTodo() {
+  const input = document.getElementById('quickAddInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const parsed = parseNaturalLanguage(text);
+  // Resolve tags - create new ones if they don't exist
+  const tagIds = [];
+  for (const tagName of parsed.tags) {
+    let existing = data.tags.find(t => t.name.toLowerCase() === tagName);
+    if (!existing) {
+      existing = { id: data.nextTagId++, name: tagName, color: COLORS[data.tags.length % COLORS.length] };
+      data.tags.push(existing);
+    }
+    tagIds.push(existing.id);
+  }
+  data.todos.push({
+    id: data.nextTodoId++, title: parsed.title, description: '', completed: false,
+    priority: parsed.priority, dueDate: parsed.dueDate, tagIds, pinned: false,
+    subtasks: [], recurring: { type: 'none', interval: 1 }, reminderAt: null,
+    reminderFired: false, createdAt: Date.now(), updatedAt: Date.now(), status: 'todo',
+  });
+  input.value = '';
+  document.getElementById('quickAddPreview').classList.add('hidden');
+  persist(); renderAll();
+  showToast(`"${parsed.title}" added ✨`, '⚡');
+}
+
 // --- Actions ---
 function toggleTodo(id) {
   const todo = data.todos.find(t => t.id === id);
@@ -1044,12 +1521,30 @@ function bindEvents() {
   document.getElementById('multiSelectBtn').addEventListener('click', toggleMultiSelect);
   document.getElementById('pomodoroBtn').addEventListener('click', openPomodoro);
   document.getElementById('saveSmartListBtn').addEventListener('click', saveCurrentViewAsSmartList);
-
-  document.getElementById('viewToggle').addEventListener('click', () => {
-    calendarMode = !calendarMode;
-    document.getElementById('viewToggle').textContent = calendarMode ? '📋' : '📅';
-    renderAll();
+  document.getElementById('quickAddBtn').addEventListener('click', quickAddTodo);
+  document.getElementById('quickAddInput').addEventListener('input', updateQuickAddPreview);
+  document.getElementById('quickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); quickAddTodo(); } });
+  document.getElementById('moodEmoji').addEventListener('click', (e) => { e.stopPropagation(); toggleMoodPicker(); });
+  document.getElementById('moodEmoji').addEventListener('dblclick', openMoodModal);
+  document.querySelectorAll('.mood-opt').forEach(btn => {
+    btn.addEventListener('click', () => logMood(parseInt(btn.dataset.rating)));
   });
+  document.addEventListener('click', (e) => {
+    const picker = document.getElementById('moodPicker');
+    const emoji = document.getElementById('moodEmoji');
+    if (!picker.classList.contains('hidden') && !emoji.contains(e.target) && !picker.contains(e.target)) {
+      picker.classList.add('hidden');
+    }
+  });
+
+  // Board drop zones
+  document.querySelectorAll('.board-list').forEach(el => {
+    el.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    el.addEventListener('dragenter', (e) => { e.target.closest('.board-list')?.classList.add('drag-over'); });
+    el.addEventListener('dragleave', (e) => { e.target.closest('.board-list')?.classList.remove('drag-over'); });
+  });
+
+  document.getElementById('viewToggle').addEventListener('click', cycleView);
 
   document.getElementById('clearDate').addEventListener('click', () => { document.getElementById('todoDueDate').value = ''; });
   document.getElementById('clearSearch').addEventListener('click', () => {
@@ -1107,7 +1602,7 @@ function bindEvents() {
     }
     if ((e.key === 'n' || e.key === 'N') && !e.target.matches('input, textarea, select')) { e.preventDefault(); openAddModal(); }
     if (e.key === '/' && !e.target.matches('input, textarea, select')) { e.preventDefault(); document.getElementById('searchInput').focus(); }
-    if (e.key === 'c' && !e.target.matches('input, textarea, select')) { calendarMode = !calendarMode; document.getElementById('viewToggle').textContent = calendarMode ? '📋' : '📅'; renderAll(); }
+    if ((e.key === 'v' || e.key === 'V') && !e.target.matches('input, textarea, select')) { e.preventDefault(); cycleView(); }
   });
 }
 
@@ -1124,5 +1619,8 @@ window.calPrev = calPrev; window.calNext = calNext; window.selectCalDay = select
 window.closePomodoro = closePomodoro; window.pomoToggle = pomoToggle; window.pomoReset = pomoReset; window.pomoSkip = pomoSkip;
 window.applySmartList = applySmartList; window.deleteSmartList = deleteSmartList;
 window.initDragDrop = initDragDrop;
+window.cycleView = cycleView; window.renderTimeline = renderTimeline;
+window.onBoardCardDragStart = onBoardCardDragStart; window.onBoardDrop = onBoardDrop;
+window.openMoodModal = openMoodModal; window.closeMoodModal = closeMoodModal;
 
 init();
