@@ -285,7 +285,9 @@ const PIP_PRIORITY_ICONS = { high: '🔴', medium: '🟠', low: '🟢' };
 
 function getTickerHTML() {
   const pending = data.todos.filter(t => !t.completed);
-  if (!pending.length) return '';
+  if (!pending.length) {
+    return ''; // empty string = main window shows nothing; PiP shows fallback
+  }
   const items = pending.map(t => {
     const icon = PIP_PRIORITY_ICONS[t.priority] || '🎯';
     const title = escapeHtml(t.title);
@@ -348,7 +350,12 @@ async function restorePipState() {
 
 function renderTicker() {
   const html = getTickerHTML();
-  document.getElementById('todoTicker').innerHTML = html;
+  const ticker = document.getElementById('todoTicker');
+  if (html) {
+    ticker.innerHTML = html;
+  } else {
+    ticker.innerHTML = ''; // Will be hidden; animation won't show anything
+  }
   if (pipActive) {
     window.api.updatePip(html);
     // Ensure interval is running (in case it died)

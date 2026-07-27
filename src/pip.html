@@ -63,6 +63,9 @@ function closePip() {
 window.pipApi.onContent((html) => {
   if (html && html.trim()) {
     pipEl.innerHTML = html;
+  } else {
+    // Show a friendly empty-state when no pending tasks
+    pipEl.innerHTML = '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
   }
 });
 window.pipApi.onTheme((theme) => {
@@ -78,11 +81,9 @@ document.addEventListener('contextmenu', (e) => {
   closePip();
 });
 
-// Auto-refresh polling
-function pollRefresh() {
+// Lightweight keep-alive: request a refresh every 10s (main pushes every 2s)
+setInterval(() => {
   window.pipApi.requestRefresh();
-}
-setInterval(pollRefresh, 3000);
-pollRefresh();
+}, 10000);
 </script></body>
 </html>

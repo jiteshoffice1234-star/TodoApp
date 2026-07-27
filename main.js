@@ -141,20 +141,43 @@ function openPipWindow() {
   });
   pipWindow.loadFile(path.join(__dirname, 'src', 'pip.html'));
   pipWindow.setAlwaysOnTop(true, 'screen-saver');
-  pipWindow.on('closed', () => { pipWindow = null; saveSetting('pipActive', false); });
+  pipWindow.on('closed', () => {
+    pipWindow = null;
+    saveSetting('pipActive', false);
+    // Notify main window so it knows PiP closed (handles Alt+F4 / system close)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.send('pip:closed-by-pip'); } catch(e) {}
+    }
+  });
   pipWindow.webContents.on('did-finish-load', () => {
     if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
   });
   return true;
 }
+// Queue messages sent while PiP is still loading, then flush on load
+let pipPendingMessages = [];
+let pipLoadHandlerAttached = false;
+
 function sendToPip(channel, ...args) {
   if (!pipWindow || pipWindow.isDestroyed()) return;
   if (pipWindow.webContents.isLoading()) {
-    pipWindow.webContents.once('did-finish-load', () => {
-      if (pipWindow && !pipWindow.isDestroyed()) pipWindow.webContents.send(channel, ...args);
-    });
+    // Queue the message instead of adding multiple once listeners
+    pipPendingMessages.push({ channel, args });
+    if (!pipLoadHandlerAttached) {
+      pipLoadHandlerAttached = true;
+      pipWindow.webContents.once('did-finish-load', () => {
+        pipLoadHandlerAttached = false;
+        const msgs = pipPendingMessages.slice();
+        pipPendingMessages = [];
+        for (const m of msgs) {
+          if (pipWindow && !pipWindow.isDestroyed()) {
+            try { pipWindow.webContents.send(m.channel, ...m.args); } catch(e) {}
+          }
+        }
+      });
+    }
   } else {
-    pipWindow.webContents.send(channel, ...args);
+    try { pipWindow.webContents.send(channel, ...args); } catch(e) {}
   }
 }
 
@@ -254,7 +277,7 @@ ipcMain.handle('pip:close', () => {
   saveSetting('pipActive', false);
   // Notify main window so it can update its PiP state
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('pip:closed-by-pip');
+    try { mainWindow.webContents.send('pip:closed-by-pip'); } catch(e) {}
   }
   return true;
 });
