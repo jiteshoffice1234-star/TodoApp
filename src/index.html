@@ -40,11 +40,15 @@
       <div class="ticker-train" id="todoTicker"></div>
     </div>
 
+    <!-- Smart Lists -->
+    <div id="smartLists" class="smart-lists"></div>
+
     <!-- Search -->
     <div class="search-bar">
       <span class="search-icon">🔍</span>
       <input type="text" id="searchInput" placeholder="Search todos... (press / to focus)" />
       <button id="clearSearch" class="search-clear hidden">✕</button>
+      <button id="saveSmartListBtn" class="save-sl-btn" title="Save current view as Smart List">📌</button>
     </div>
 
     <!-- Filters -->
@@ -99,6 +103,10 @@
         <button class="icon-btn" onclick="closePomodoro()">✕</button>
       </div>
       <div class="modal-body" style="text-align:center;">
+        <!-- Todo Selector -->
+        <div id="pomoTodoSelector" style="margin-bottom:12px;"></div>
+        <div id="focusTodoInfo" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;"></div>
+        
         <div class="pomo-ring">
           <svg viewBox="0 0 200 200">
             <circle class="pomo-bg" cx="100" cy="100" r="90"/>
@@ -113,6 +121,8 @@
           <button id="pomoPlayBtn" class="pomo-play" onclick="pomoToggle()">▶</button>
           <button class="pomo-ctrl" onclick="pomoSkip()" title="Skip">⏭</button>
         </div>
+        <!-- Focus Stats -->
+        <div id="focusStats" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);"></div>
       </div>
     </div>
   </div>
@@ -135,9 +145,14 @@
             <button class="rich-btn" onclick="richBold()" title="Bold"><b>B</b></button>
             <button class="rich-btn" onclick="richItalic()" title="Italic"><i>I</i></button>
             <button class="rich-btn" onclick="richUnderline()" title="Underline"><u>U</u></button>
+            <button class="rich-btn" onclick="richCode()" title="Code">&lt;/&gt;</button>
             <button class="rich-btn" onclick="richList()" title="Bullet List">•≡</button>
+            <button class="rich-btn" onclick="richCheckbox()" title="Checklist">☑</button>
+            <span style="flex:1"></span>
+            <button id="mdPreviewBtn" class="rich-btn" onclick="toggleMdPreview()" title="Preview">👁️</button>
           </div>
-          <textarea id="todoDesc" placeholder="Add details..." rows="3"></textarea>
+          <textarea id="todoDesc" placeholder="Add details... (Markdown: **bold**, _italic_, - [ ] checklist)" rows="3" oninput="onDescInput()"></textarea>
+          <div id="mdPreview" class="md-preview hidden"></div>
         </div>
 
         <div class="modal-row">

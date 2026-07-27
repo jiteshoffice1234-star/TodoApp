@@ -3,16 +3,15 @@ import '../data/models/todo.dart';
 import '../data/models/category.dart';
 import '../data/models/subtask.dart';
 import '../data/models/recurring_config.dart';
+import '../data/models/todo_enums.dart';
 import '../data/repositories/todo_repository.dart';
 import '../data/repositories/category_repository.dart';
+import '../data/repositories/smart_list_repository.dart';
+import '../data/models/smart_list.dart';
 import '../core/database/database_helper.dart';
 import '../core/services/notification_service.dart';
 import '../core/services/natural_language_parser.dart';
 import '../core/services/widget_service.dart';
-
-enum TodoFilter { all, pending, done }
-enum TodoSort { dateCreated, dateUpdated, dueDate, priority, alphabetical, sortOrder }
-enum ViewMode { list, grid }
 
 class TodoProvider extends ChangeNotifier {
   final TodoRepository _todoRepo = TodoRepository();
@@ -27,10 +26,53 @@ class TodoProvider extends ChangeNotifier {
   String _selectedTag = '';
   bool _isLoading = false;
   
+  // Smart Lists
+  final SmartListRepository _smartListRepo = SmartListRepository();
+  List<SmartList> _smartLists = [];
+  SmartList? _activeSmartList;
+  
+  List<SmartList> get smartLists => _smartLists;
+  SmartList? get activeSmartList => _activeSmartList;
+  
   // Multi-select
   bool _isMultiSelectMode = false;
   final Set<int> _selectedTodoIds = {};
   
+  // Smart Lists
+  Future<void> loadSmartLists() async {
+    _smartLists = await _smartListRepo.getAll();
+    notifyListeners();
+  }
+
+  Future<void> saveSmartList(SmartList sl) async {
+    final id = await _smartListRepo.insert(sl);
+    _smartLists.add(sl.copyWith(id: id));
+    notifyListeners();
+  }
+
+  Future<void> deleteSmartList(int id) async {
+    await _smartListRepo.delete(id);
+    _smartLists.removeWhere((s) => s.id == id);
+    if (_activeSmartList?.id == id) _activeSmartList = null;
+    notifyListeners();
+  }
+
+  void applySmartList(SmartList sl) {
+    _activeSmartList = sl;
+    _filter = sl.filter;
+    _searchQuery = sl.searchQuery;
+    _selectedTag = sl.selectedTag;
+    notifyListeners();
+  }
+
+  bool get _smartListFilterDueToday => _activeSmartList?.dueToday == true;
+  bool get _smartListFilterHighPriority => _activeSmartList?.priority == 'high';
+
+  void clearActiveSmartList() {
+    _activeSmartList = null;
+    notifyListeners();
+  }
+
   // Calendar
   DateTime _selectedCalendarDate = DateTime.now();
 
@@ -117,6 +159,20 @@ class TodoProvider extends ChangeNotifier {
   List<Todo> get _filteredTodos {
     List<Todo> result = List.from(_todos);
 
+    if (_smartListFilterDueToday) {
+      final today = DateTime.now();
+      final todayStart = DateTime(today.year, today.month, today.day);
+      result = result.where((t) =>
+          t.dueDate != null &&
+          t.dueDate!.year == todayStart.year &&
+          t.dueDate!.month == todayStart.month &&
+          t.dueDate!.day == todayStart.day).toList();
+    }
+
+    if (_smartListFilterHighPriority) {
+      result = result.where((t) => t.priority == 'high').toList();
+    }
+
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       result = result
@@ -181,6 +237,7 @@ class TodoProvider extends ChangeNotifier {
     notifyListeners();
     _todos = await _todoRepo.getAll();
     _categories = await _categoryRepo.getAll();
+    _smartLists = await _smartListRepo.getAll();
     _isLoading = false;
     notifyListeners();
   }
@@ -356,8 +413,7 @@ class TodoProvider extends ChangeNotifier {
     
     try {
       WidgetService.instance.updateWidget();
-    } catch (_) {    }
-    try { WidgetService.instance.updateWidget(); } catch (_) {}
+    } catch (_) {}
     notifyListeners();
   }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/database/database_helper.dart';
 
 class PomodoroProvider extends ChangeNotifier {
@@ -15,6 +16,7 @@ class PomodoroProvider extends ChangeNotifier {
   bool _isStopped = true;
   int _sessionCount = 0;
   int? _currentTodoId;
+  int _dailyFocusGoal = 60;
 
   int get remainingSeconds => _remainingSeconds;
   int get totalSeconds => _totalSeconds;
@@ -23,6 +25,7 @@ class PomodoroProvider extends ChangeNotifier {
   bool get isStopped => _isStopped;
   int get sessionCount => _sessionCount;
   int? get currentTodoId => _currentTodoId;
+  int get dailyFocusGoal => _dailyFocusGoal;
 
   double get progress => _totalSeconds > 0 ? 1 - (_remainingSeconds / _totalSeconds) : 0;
 
@@ -30,6 +33,19 @@ class PomodoroProvider extends ChangeNotifier {
     final minutes = _remainingSeconds ~/ 60;
     final seconds = _remainingSeconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> loadFocusGoal() async {
+    final prefs = await SharedPreferences.getInstance();
+    _dailyFocusGoal = prefs.getInt('focusGoalMinutes') ?? 60;
+    notifyListeners();
+  }
+
+  Future<void> setFocusGoal(int minutes) async {
+    _dailyFocusGoal = minutes;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('focusGoalMinutes', minutes);
+    notifyListeners();
   }
 
   void startWork({int? todoId, int? durationMinutes}) {
@@ -138,6 +154,12 @@ class PomodoroProvider extends ChangeNotifier {
 
   Future<int> getTodoPomodoroMinutes(int todoId) async {
     return await DatabaseHelper.instance.getPomodoroMinutes(todoId);
+  }
+
+  Future<int> getDailyFocusMinutes() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    return await DatabaseHelper.instance.getPomodoroMinutesSince(startOfDay.millisecondsSinceEpoch);
   }
 
   @override

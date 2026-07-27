@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/todo.dart';
+import '../../data/models/smart_list.dart';
+import '../../data/models/todo_enums.dart';
 import '../../providers/todo_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../core/theme/color_utils.dart';
@@ -289,6 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           const QuickAddBar(),
+          _buildSmartLists(todoProvider, theme),
           _buildSearchBar(todoProvider),
           _buildFilterChips(todoProvider, theme),
           _buildTagFilter(todoProvider, theme),
@@ -329,17 +332,91 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: InputDecoration(
           hintText: 'Search todos...',
           prefixIcon: const Icon(Icons.search),
-          suffixIcon: _searchCtrl.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_searchCtrl.text.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.clear, size: 18),
                   onPressed: () {
                     _searchCtrl.clear();
                     provider.setSearchQuery('');
                   },
-                )
-              : null,
+                ),
+              IconButton(
+                icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                onPressed: () => _showSaveSmartListDialog(provider),
+                tooltip: 'Save as Smart List',
+              ),
+            ],
+          ),
         ),
         onChanged: (v) => provider.setSearchQuery(v),
+      ),
+    );
+  }
+
+  Widget _buildSmartLists(TodoProvider provider, ThemeData theme) {
+    final defaultLists = [
+      SmartList(name: 'Due Today', icon: '📅', filter: TodoFilter.all, searchQuery: '', dueToday: true),
+      SmartList(name: 'High Priority', icon: '🔴', filter: TodoFilter.all, searchQuery: '', priority: 'high'),
+      SmartList(name: 'Pending', icon: '📋', filter: TodoFilter.pending, searchQuery: ''),
+    ];
+    final userLists = provider.smartLists;
+    final lists = defaultLists + userLists;
+    if (lists.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: lists.map((sl) {
+          final active = provider.activeSmartList?.name == sl.name;
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: ActionChip(
+              label: Text('${sl.icon} ${sl.name}', style: TextStyle(fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
+              onPressed: () => provider.applySmartList(sl),
+              side: BorderSide(color: active ? theme.colorScheme.primary : theme.colorScheme.outline.withOpacity(0.3)),
+              backgroundColor: active ? theme.colorScheme.primaryContainer : null,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _showSaveSmartListDialog(TodoProvider provider) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Save as Smart List'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(
+            hintText: 'My Smart List',
+            labelText: 'Name',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) {
+                provider.saveSmartList(SmartList(
+                  name: ctrl.text.trim(),
+                  filter: provider.filter,
+                  searchQuery: provider.searchQuery,
+                  selectedTag: provider.selectedTag,
+                ));
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }

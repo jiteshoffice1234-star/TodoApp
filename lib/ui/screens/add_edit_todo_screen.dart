@@ -6,6 +6,7 @@ import '../../data/models/subtask.dart';
 import '../../data/models/recurring_config.dart';
 import '../../providers/todo_provider.dart';
 import '../../core/theme/color_utils.dart';
+import '../widgets/markdown_editor.dart';
 
 class AddEditTodoScreen extends StatefulWidget {
   final Todo? todo;
@@ -92,17 +93,10 @@ class _AddEditTodoScreenState extends State<AddEditTodoScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Rich Text Description
-            Text('Description', style: theme.textTheme.titleSmall),
+            // Markdown Description
+            Text('Description (Markdown)', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
-            TextFormField(
-              controller: _descCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                hintText: 'Add details...',
-              ),
-              maxLines: 5,
-            ),
+            MarkdownEditor(controller: _descCtrl),
             const SizedBox(height: 20),
             
             // Priority

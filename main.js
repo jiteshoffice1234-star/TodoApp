@@ -126,6 +126,7 @@ let mainWindow;
 let pipWindow = null;
 let pipRestorePending = false;
 let pomodoroTimers = {};
+let cachedPipHtml = '';
 
 function openPipWindow() {
   if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.focus(); return true; }
@@ -140,7 +141,10 @@ function openPipWindow() {
   });
   pipWindow.loadFile(path.join(__dirname, 'src', 'pip.html'));
   pipWindow.setAlwaysOnTop(true, 'screen-saver');
-  pipWindow.on('closed', () => { pipWindow = null; });
+  pipWindow.on('closed', () => { pipWindow = null; saveSetting('pipActive', false); });
+  pipWindow.webContents.on('did-finish-load', () => {
+    if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
+  });
   return true;
 }
 function sendToPip(channel, ...args) {
@@ -248,10 +252,15 @@ ipcMain.handle('pip:open', () => {
 ipcMain.handle('pip:close', () => {
   if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.close(); pipWindow = null; }
   saveSetting('pipActive', false);
+  // Notify main window so it can update its PiP state
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('pip:closed-by-pip');
+  }
   return true;
 });
 
 ipcMain.handle('pip:update', (_, html) => {
+  cachedPipHtml = html;
   sendToPip('pip:set-content', html);
   return true;
 });
@@ -262,3 +271,13 @@ ipcMain.handle('pip:theme', (_, theme) => {
 });
 
 ipcMain.handle('pip:state', () => getSetting('pipActive'));
+
+ipcMain.handle('pip:drag-move', (_, x, y) => {
+  if (pipWindow && !pipWindow.isDestroyed()) pipWindow.setPosition(Math.round(x), Math.round(y));
+  return true;
+});
+
+ipcMain.handle('pip:request-refresh', () => {
+  if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
+  return true;
+});

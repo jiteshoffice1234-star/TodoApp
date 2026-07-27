@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('api', {
   updatePipTheme: (theme) => ipcRenderer.invoke('pip:theme', theme),
   getPipState: () => ipcRenderer.invoke('pip:state'),
   onPipSync: (callback) => ipcRenderer.on('pip:sync', callback),
+  onPipClosedByPip: (callback) => ipcRenderer.on('pip:closed-by-pip', callback),
 });

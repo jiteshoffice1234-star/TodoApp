@@ -6,6 +6,7 @@ import '../../data/models/category.dart';
 import '../../data/models/recurring_config.dart';
 import '../../core/theme/color_utils.dart';
 import 'priority_badge.dart';
+import 'markdown_viewer.dart';
 
 class GridTodoCard extends StatefulWidget {
   final Todo todo;
@@ -140,14 +141,7 @@ class _GridTodoCardState extends State<GridTodoCard> {
                     ),
                     if (todo.description.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        todo.description,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      MarkdownViewer(data: todo.description, fontSize: 11),
                     ],
                     const SizedBox(height: 8),
                     if (todo.hasSubtasks) ...[

@@ -58,6 +58,9 @@ dependencies:
   cloud_firestore: ^6.0.0
   connectivity_plus: ^6.0.3
   
+  # Feature: Markdown Notes
+  flutter_markdown: ^0.7.6
+  
   # Open-source animations
   animations: ^2.0.11
   flutter_animate: ^4.5.0

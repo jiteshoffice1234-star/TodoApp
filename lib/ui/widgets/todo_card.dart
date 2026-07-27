@@ -8,6 +8,7 @@ import '../../data/models/recurring_config.dart';
 import '../../core/theme/color_utils.dart';
 import '../../providers/todo_provider.dart';
 import 'priority_badge.dart';
+import 'markdown_viewer.dart';
 
 class TodoCard extends StatelessWidget {
   final Todo todo;
@@ -219,14 +220,7 @@ class _TodoCardContentState extends State<_TodoCardContent>
                       ),
                       if (t.description.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Text(
-                          t.description,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.6),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        MarkdownViewer(data: t.description, fontSize: 12),
                       ],
                       const SizedBox(height: 8),
                       Wrap(

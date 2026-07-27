@@ -21,7 +21,7 @@ class DatabaseHelper {
     final path = join(dbPath, fileName);
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -82,6 +82,19 @@ class DatabaseHelper {
         FOREIGN KEY (todoId) REFERENCES todos(id) ON DELETE CASCADE
       )
     ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS smart_lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        icon TEXT DEFAULT '📌',
+        filter INTEGER DEFAULT 0,
+        searchQuery TEXT DEFAULT '',
+        selectedTag TEXT DEFAULT '',
+        sortOrder INTEGER DEFAULT 0,
+        priority TEXT DEFAULT '',
+        dueToday INTEGER DEFAULT 0
+      )
+    ''');
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
@@ -89,6 +102,14 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE todos ADD COLUMN tags TEXT DEFAULT ""');
       await db.execute('ALTER TABLE todos ADD COLUMN attachments TEXT DEFAULT ""');
       await db.execute('ALTER TABLE categories ADD COLUMN customColors TEXT DEFAULT ""');
+    }
+    if (oldVersion < 4) {
+      try {
+        await db.execute('ALTER TABLE smart_lists ADD COLUMN priority TEXT DEFAULT ""');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE smart_lists ADD COLUMN dueToday INTEGER DEFAULT 0');
+      } catch (_) {}
     }
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE todos ADD COLUMN recurringConfig INTEGER DEFAULT 0');
@@ -238,6 +259,15 @@ class DatabaseHelper {
     final result = await db.rawQuery(
       'SELECT COALESCE(SUM(durationMinutes), 0) as total FROM pomodoro_sessions WHERE todoId = ? AND completed = 1',
       [todoId],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<int> getPomodoroMinutesSince(int sinceMs) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COALESCE(SUM(durationMinutes), 0) as total FROM pomodoro_sessions WHERE completed = 1 AND startedAt >= ?',
+      [sinceMs],
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }

@@ -3,13 +3,14 @@ const COLORS = [
   '#8E24AA', '#FF4081', '#00ACC1', '#6D4C41', '#546E7A', '#6200EE'
 ];
 
-let data = { todos: [], tags: [], nextTodoId: 1, nextTagId: 1, deletedTodos: [], settings: {} };
+let data = { todos: [], tags: [], nextTodoId: 1, nextTagId: 1, deletedTodos: [], settings: {}, smartLists: [], focusSessions: [] };
 let currentFilter = 'all';
 let searchQuery = '';
 let editingTodoId = null;
 let selectedPriority = 'medium';
 let selectedTagColor = COLORS[0];
 let currentTheme = 'light';
+let activeSmartListId = null;
 
 const THEMES = [
   { id: 'light', icon: '☀️', label: 'Light' },
@@ -44,6 +45,8 @@ async function init() {
     nextTagId: raw.nextTagId || 1,
     deletedTodos: raw.deletedTodos || [],
     settings: raw.settings || {},
+    smartLists: raw.smartLists || [],
+    focusSessions: raw.focusSessions || [],
   };
   for (const t of data.todos) {
     if (t.tagIds === undefined) t.tagIds = [];
@@ -65,7 +68,20 @@ async function init() {
   checkDueNotifications();
   setInterval(checkDueNotifications, 60000);
   // Re-sync PiP when main window is shown again
-  window.api.onPipSync(() => { if (pipActive) window.api.updatePip(getTickerHTML()); });
+  window.api.onPipSync(() => {
+    if (pipActive) {
+      const html = getTickerHTML();
+      window.api.updatePip(html);
+      if (!pipInterval) startPipInterval();
+    }
+  });
+  // Clean up PiP state when closed via drag-to-cancel in pip window
+  window.api.onPipClosedByPip(() => {
+    pipActive = false;
+    if (pipInterval) { clearInterval(pipInterval); pipInterval = null; }
+    document.getElementById('pipBtn').textContent = '📺';
+    document.getElementById('pipBtn').title = 'Pop Out Ticker';
+  });
   // Auto-restore PiP if it was active before
   restorePipState();
 }
@@ -137,10 +153,70 @@ function showToast(message, icon = '✓', duration = 3000, undoCallback = null) 
   setTimeout(() => { if (toast.parentNode) toast.remove(); }, duration + 300);
 }
 
+// --- Smart Lists ---
+function getDefaultSmartLists() {
+  return [
+    { id: 'due-today', name: 'Due Today', icon: '📅', filter: 'all', search: '', tagIds: [], builtin: true },
+    { id: 'high-priority', name: 'High Priority', icon: '🔴', filter: 'all', search: '', tagIds: [], builtin: true },
+    { id: 'pending', name: 'Pending', icon: '📋', filter: 'pending', search: '', tagIds: [], builtin: true },
+  ];
+}
+function applySmartList(sl) {
+  activeSmartListId = sl.id;
+  currentFilter = sl.filter || 'all';
+  searchQuery = sl.search || '';
+  document.getElementById('searchInput').value = searchQuery;
+  document.getElementById('clearSearch').classList.toggle('hidden', !searchQuery);
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === currentFilter));
+  renderSmartLists();
+  renderTodos();
+}
+function saveCurrentViewAsSmartList() {
+  const name = prompt('Name this smart list:');
+  if (!name || !name.trim()) return;
+  const sl = {
+    id: 'sl_' + Date.now(),
+    name: name.trim(),
+    icon: '📌',
+    filter: currentFilter,
+    search: searchQuery,
+    tagIds: [],
+    builtin: false,
+  };
+  if (!data.smartLists) data.smartLists = [];
+  data.smartLists.push(sl);
+  applySmartList(sl);
+  persist();
+  showToast(`Smart List "${sl.name}" saved`, '📌');
+}
+function deleteSmartList(id) {
+  const sl = (data.smartLists || []).find(s => s.id === id);
+  if (!sl || sl.builtin) return;
+  data.smartLists = data.smartLists.filter(s => s.id !== id);
+  if (activeSmartListId === id) { activeSmartListId = null; currentFilter = 'all'; searchQuery = ''; document.getElementById('searchInput').value = ''; }
+  renderSmartLists();
+  persist();
+  showToast(`"${sl.name}" deleted`, '🗑️');
+}
+function renderSmartLists() {
+  const defaults = getDefaultSmartLists();
+  const user = (data.smartLists || []).filter(s => !s.builtin);
+  const all = defaults.concat(user);
+  const container = document.getElementById('smartLists');
+  if (!container) return;
+  container.innerHTML = all.map(sl => {
+    const active = activeSmartListId === sl.id ? 'active' : '';
+    const delBtn = sl.builtin ? '' : `<button class="sl-del" onclick="event.stopPropagation();deleteSmartList('${sl.id}')" title="Delete">✕</button>`;
+    return `<div class="sl-chip ${active}" onclick="applySmartList(${JSON.stringify(sl).replace(/"/g, '&quot;')})">
+      <span>${sl.icon} ${escapeHtml(sl.name)}</span>${delBtn}
+    </div>`;
+  }).join('');
+}
+
 // --- Render ---
 function renderAll() {
   if (calendarMode) { renderCalendar(); } else { renderTodos(); }
-  renderTagSelector(); renderTagList(); updateMeta(); renderTicker();
+  renderTagSelector(); renderTagList(); updateMeta(); renderTicker(); renderSmartLists();
 }
 
 function getFilteredTodos() {
@@ -168,28 +244,53 @@ function getFilteredTodos() {
 let pipActive = false;
 let pipInterval = null;
 
+const PIP_PRIORITY_ICONS = { high: '🔴', medium: '🟠', low: '🟢' };
+
 function getTickerHTML() {
   const pending = data.todos.filter(t => !t.completed);
   if (!pending.length) return '';
-  const titles = pending.map(t => escapeHtml(t.title));
-  const doubled = titles.concat(titles);
-  return doubled.map(t => `<span class="todo-item">🎯 ${t}</span>`).join('');
+  const items = pending.map(t => {
+    const icon = PIP_PRIORITY_ICONS[t.priority] || '🎯';
+    const title = escapeHtml(t.title);
+    const overdue = t.dueDate && t.dueDate < new Date().toISOString().split('T')[0];
+    const badge = overdue ? '⚠️' : '';
+    return `<span class="todo-item">${icon} ${title}${badge}</span>`;
+  });
+  // Duplicate for seamless scrolling
+  const doubled = items.concat(items);
+  return doubled.join('');
 }
 
-async function pipToggle() {
-  if (pipActive) { await pipClose(); return; }
+async function pipOpen() {
   const ok = await window.api.openPip();
-  if (!ok) { showToast('Failed to open PiP window', '⚠️'); return; }
+  if (!ok) return false;
   pipActive = true;
   document.getElementById('pipBtn').textContent = '🔴';
   document.getElementById('pipBtn').title = 'Close Pop Out';
   await window.api.updatePipTheme(currentTheme);
-  const html = getTickerHTML();
-  if (html) await window.api.updatePip(html);
+  pushPipContent();
+  startPipInterval();
+  return true;
+}
+
+function startPipInterval() {
+  if (pipInterval) clearInterval(pipInterval);
   pipInterval = setInterval(async () => {
     if (!pipActive) return;
-    await window.api.updatePip(getTickerHTML());
+    const html = getTickerHTML();
+    await window.api.updatePip(html);
   }, 2000);
+}
+
+function pushPipContent() {
+  const html = getTickerHTML();
+  window.api.updatePip(html);
+}
+
+async function pipToggle() {
+  if (pipActive) { await pipClose(); return; }
+  const ok = await pipOpen();
+  if (!ok) showToast('Failed to open PiP window', '⚠️');
 }
 
 async function pipClose() {
@@ -202,13 +303,20 @@ async function pipClose() {
 
 async function restorePipState() {
   const wasActive = await window.api.getPipState();
-  if (wasActive && !pipActive) pipToggle();
+  if (wasActive) {
+    const ok = await pipOpen();
+    if (ok) showToast('PiP reconnected', '📺');
+  }
 }
 
 function renderTicker() {
   const html = getTickerHTML();
   document.getElementById('todoTicker').innerHTML = html;
-  if (pipActive) window.api.updatePip(html);
+  if (pipActive) {
+    window.api.updatePip(html);
+    // Ensure interval is running (in case it died)
+    if (!pipInterval) startPipInterval();
+  }
 }
 
 function updateMeta() {
@@ -246,7 +354,7 @@ function renderTodos() {
     const tagDotsHtml = (tagDots || moreTag) ? `<div class="tag-dots">${tagDots}${moreTag}</div>` : '';
     const tagBadges = todoTags.map(t => `<span class="todo-tag-badge" style="background:${t.color}">${escapeHtml(t.name)}</span>`).join('');
     const tagRow = tagBadges ? `<div class="todo-tags-row">${tagBadges}</div>` : '';
-    const desc = todo.description ? `<div class="todo-desc">${escapeHtml(todo.description)}</div>` : '';
+    const desc = todo.description ? `<div class="todo-desc">${mdToHtml(todo.description)}</div>` : '';
 
     let dueHtml = '';
     if (todo.dueDate) {
@@ -361,10 +469,41 @@ function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
 function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
 function selectCalDay(dateStr) { data._selectedCalDay = dateStr; renderCalendar(); }
 
+// --- Focus Mode ---
+function saveFocusSession(todoId, durationMinutes) {
+  data.focusSessions.push({
+    id: Date.now(),
+    todoId: todoId,
+    startedAt: Date.now() - durationMinutes * 60000,
+    durationMinutes: durationMinutes,
+    completed: true,
+  });
+  persist();
+}
+function getDailyFocusMinutes() {
+  const today = new Date().toISOString().split('T')[0];
+  const todayStart = new Date(today + 'T00:00:00').getTime();
+  const todayEnd = new Date(today + 'T23:59:59').getTime();
+  return data.focusSessions
+    .filter(s => s.completed && s.startedAt >= todayStart && s.startedAt <= todayEnd)
+    .reduce((sum, s) => sum + s.durationMinutes, 0);
+}
+function getTodoFocusMinutes(todoId) {
+  return data.focusSessions
+    .filter(s => s.todoId === todoId && s.completed)
+    .reduce((sum, s) => sum + s.durationMinutes, 0);
+}
+function getFocusGoal() { return data.settings.focusGoalMinutes || 60; }
+function setFocusGoal(min) { data.settings.focusGoalMinutes = min; persist(); }
+let focusTodoId = null;
+function selectFocusTodo(id) { focusTodoId = id; renderPomoTodoSelector(); }
+
 // --- Pomodoro ---
 function openPomodoro() {
   document.getElementById('pomodoroModal').classList.remove('hidden');
   renderPomoSessions();
+  renderPomoTodoSelector();
+  renderFocusStats();
   updatePomoDisplay();
 }
 function closePomodoro() {
@@ -398,6 +537,10 @@ function pomoSkip() { pomoPause(); pomoComplete(); }
 function pomoComplete() {
   pomoPause();
   if (!pomoIsBreak) {
+    // Save focus session
+    if (focusTodoId) {
+      saveFocusSession(focusTodoId, Math.round(pomoTotal / 60));
+    }
     pomoSessions++;
     if (pomoSessions % 4 === 0) { pomoIsBreak = true; pomoSeconds = 15 * 60; }
     else { pomoIsBreak = true; pomoSeconds = 5 * 60; }
@@ -408,6 +551,7 @@ function pomoComplete() {
   pomoTotal = pomoSeconds;
   renderPomoSessions();
   updatePomoDisplay();
+  renderFocusStats();
   window.api.sendNotification('Pomodoro', pomoIsBreak ? 'Break time!' : 'Focus time!');
 }
 function updatePomoDisplay() {
@@ -428,6 +572,39 @@ function renderPomoSessions() {
   el.innerHTML = Array.from({ length: 4 }, (_, i) =>
     `<span class="pomo-dot ${i < (pomoSessions % 4) ? 'filled' : ''}"></span>`
   ).join('') + `<span class="pomo-session-text">Session ${pomoSessions + 1}</span>`;
+}
+function renderPomoTodoSelector() {
+  const el = document.getElementById('pomoTodoSelector');
+  const pending = data.todos.filter(t => !t.completed);
+  el.innerHTML = `<select id="focusTodoSelect" onchange="focusTodoId=this.value?Number(this.value):null" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+    <option value="">Focus on any task...</option>
+    ${pending.map(t => `<option value="${t.id}" ${focusTodoId === t.id ? 'selected' : ''}>${escapeHtml(t.title)}${getTodoFocusMinutes(t.id) > 0 ? ' (' + getTodoFocusMinutes(t.id) + 'min)' : ''}</option>`).join('')}
+  </select>`;
+  // Show selected task focus time
+  const info = document.getElementById('focusTodoInfo');
+  if (focusTodoId) {
+    const todo = data.todos.find(t => t.id === focusTodoId);
+    const mins = getTodoFocusMinutes(focusTodoId);
+    info.innerHTML = todo ? `🎯 ${escapeHtml(todo.title)} — ${mins} min focused` : '';
+  } else {
+    info.innerHTML = '';
+  }
+}
+function renderFocusStats() {
+  const el = document.getElementById('focusStats');
+  const daily = getDailyFocusMinutes();
+  const goal = getFocusGoal();
+  const pct = Math.min(100, Math.round((daily / goal) * 100));
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <span style="font-size:13px;font-weight:600;">🎯 Daily Focus</span>
+      <span style="font-size:12px;color:var(--text-muted);">${daily}/${goal} min</span>
+    </div>
+    <div class="subtask-bar" style="max-width:100%;height:6px;">
+      <div class="subtask-fill" style="width:${pct}%;background:${pct >= 100 ? 'var(--success)' : 'var(--primary)'};"></div>
+    </div>
+    ${pct >= 100 ? '<div style="font-size:11px;color:var(--success);margin-top:4px;">✅ Daily goal reached!</div>' : ''}
+  `;
 }
 
 // --- Subtasks ---
@@ -451,6 +628,38 @@ function renderSubtaskList() {
 function toggleEditSubtask(i) { editingSubtasks[i].done = !editingSubtasks[i].done; renderSubtaskList(); }
 function removeEditSubtask(i) { editingSubtasks.splice(i, 1); renderSubtaskList(); }
 
+// --- Markdown helpers ---
+function mdToHtml(text) {
+  if (!text) return '';
+  let html = escapeHtml(text);
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  // Italic
+  html = html.replace(/_([^_]+)_/g, '<i>$1</i>');
+  // Underline
+  html = html.replace(/__(.+?)__/g, '<u>$1</u>');
+  // Checklist items (must be before list items)
+  html = html.replace(/^- \[x\] (.*)$/gim, '<label class="md-checklist"><input type="checkbox" checked disabled><span>$1</span></label>');
+  html = html.replace(/^- \[ \] (.*)$/gim, '<label class="md-checklist"><input type="checkbox" disabled><span>$1</span></label>');
+  // Bullet list items
+  html = html.replace(/^• (.*)$/gim, '<li>$1</li>');
+  html = html.replace(/^- (.*)$/gim, '<li>$1</li>');
+  // Paragraphs (double newlines)
+  html = html.split(/\n\n+/).map(p => {
+    p = p.trim();
+    if (!p) return '';
+    if (p.startsWith('<') && (p.endsWith('>') || p.endsWith('</label>'))) return p;
+    if (p.startsWith('<li>')) return '<ul>' + p.replace(/<\/li>(<li>)/g, '$1') + '</ul>';
+    return '<p>' + p + '</p>';
+  }).join('\n');
+  // Single newlines within paragraphs
+  html = html.replace(/<\/p>\n<p>/g, '</p>\n<p>');
+  html = html.replace(/(?<!<\/[^>]*)\n(?!<)/g, '<br>');
+  return html;
+}
+
 // --- Rich text helpers ---
 function richBold() { wrapSelection('**', '**'); }
 function richItalic() { wrapSelection('_', '_'); }
@@ -462,6 +671,16 @@ function richList() {
   ta.selectionStart = ta.selectionEnd = start + 3;
   ta.focus();
 }
+function richCode() {
+  wrapSelection('`', '`');
+}
+function richCheckbox() {
+  const ta = document.getElementById('todoDesc');
+  const start = ta.selectionStart;
+  ta.value = ta.value.substring(0, start) + '- [ ] ' + ta.value.substring(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = start + 6;
+  ta.focus();
+}
 function wrapSelection(before, after) {
   const ta = document.getElementById('todoDesc');
   const start = ta.selectionStart;
@@ -471,6 +690,26 @@ function wrapSelection(before, after) {
   ta.selectionStart = start + before.length;
   ta.selectionEnd = end + before.length;
   ta.focus();
+}
+let mdPreviewActive = false;
+function toggleMdPreview() {
+  mdPreviewActive = !mdPreviewActive;
+  const ta = document.getElementById('todoDesc');
+  const preview = document.getElementById('mdPreview');
+  const btn = document.getElementById('mdPreviewBtn');
+  ta.classList.toggle('hidden', mdPreviewActive);
+  preview.classList.toggle('hidden', !mdPreviewActive);
+  if (mdPreviewActive) {
+    preview.innerHTML = mdToHtml(ta.value);
+  }
+  btn.textContent = mdPreviewActive ? '✏️' : '👁️';
+  btn.title = mdPreviewActive ? 'Edit' : 'Preview';
+}
+// Live preview update on input
+function onDescInput() {
+  if (mdPreviewActive) {
+    document.getElementById('mdPreview').innerHTML = mdToHtml(document.getElementById('todoDesc').value);
+  }
 }
 
 // --- Drag & Drop ---
@@ -804,6 +1043,7 @@ function bindEvents() {
   document.getElementById('addTagBtn').addEventListener('click', addTag);
   document.getElementById('multiSelectBtn').addEventListener('click', toggleMultiSelect);
   document.getElementById('pomodoroBtn').addEventListener('click', openPomodoro);
+  document.getElementById('saveSmartListBtn').addEventListener('click', saveCurrentViewAsSmartList);
 
   document.getElementById('viewToggle').addEventListener('click', () => {
     calendarMode = !calendarMode;
@@ -879,8 +1119,10 @@ window.toggleTagOption = toggleTagOption; window.toggleSelect = toggleSelect;
 window.bulkComplete = bulkComplete; window.bulkDelete = bulkDelete; window.bulkClearSelection = bulkClearSelection;
 window.addSubtask = addSubtask; window.toggleEditSubtask = toggleEditSubtask; window.removeEditSubtask = removeEditSubtask;
 window.richBold = richBold; window.richItalic = richItalic; window.richUnderline = richUnderline; window.richList = richList;
+window.richCode = richCode; window.richCheckbox = richCheckbox; window.toggleMdPreview = toggleMdPreview; window.onDescInput = onDescInput;
 window.calPrev = calPrev; window.calNext = calNext; window.selectCalDay = selectCalDay;
 window.closePomodoro = closePomodoro; window.pomoToggle = pomoToggle; window.pomoReset = pomoReset; window.pomoSkip = pomoSkip;
+window.applySmartList = applySmartList; window.deleteSmartList = deleteSmartList;
 window.initDragDrop = initDragDrop;
 
 init();
