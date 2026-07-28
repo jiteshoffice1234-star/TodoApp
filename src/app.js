@@ -280,6 +280,8 @@ function getFilteredTodos() {
 // --- PiP Pop Out Ticker ---
 let pipActive = false;
 let pipInterval = null;
+let _lastPipHtml = ''; // Cache to avoid unnecessary updates that kill smooth scrolling
+let _pipStartupDeferred = false;
 
 const PIP_PRIORITY_ICONS = { high: '🔴', medium: '🟠', low: '🟢' };
 
@@ -300,6 +302,14 @@ function getTickerHTML() {
   return doubled.join('');
 }
 
+// Only push to PiP when content actually changes (avoids resetting the scroll animation)
+function pushPipContentIfChanged() {
+  const html = getTickerHTML();
+  if (html === _lastPipHtml) return; // No change — animation keeps scrolling smoothly
+  _lastPipHtml = html;
+  window.api.updatePip(html);
+}
+
 async function pipOpen() {
   const ok = await window.api.openPip();
   if (!ok) return false;
@@ -307,23 +317,23 @@ async function pipOpen() {
   document.getElementById('pipBtn').textContent = '🔴';
   document.getElementById('pipBtn').title = 'Close Pop Out';
   await window.api.updatePipTheme(currentTheme);
-  pushPipContent();
+  _lastPipHtml = ''; // Reset cache so first push always goes through
+  pushPipContentIfChanged();
   startPipInterval();
   return true;
 }
 
 function startPipInterval() {
   if (pipInterval) clearInterval(pipInterval);
-  pipInterval = setInterval(async () => {
+  // Check every 5 seconds, but only push when content actually changed
+  pipInterval = setInterval(() => {
     if (!pipActive) return;
-    const html = getTickerHTML();
-    await window.api.updatePip(html);
-  }, 2000);
+    pushPipContentIfChanged();
+  }, 5000);
 }
 
 function pushPipContent() {
-  const html = getTickerHTML();
-  window.api.updatePip(html);
+  pushPipContentIfChanged();
 }
 
 async function pipToggle() {
@@ -334,13 +344,20 @@ async function pipToggle() {
 
 async function pipClose() {
   pipActive = false;
+  _lastPipHtml = '';
+  _pipStartupDeferred = false; // Reset flag so PiP can be restored again later
   if (pipInterval) { clearInterval(pipInterval); pipInterval = null; }
   await window.api.closePip();
   document.getElementById('pipBtn').textContent = '📺';
   document.getElementById('pipBtn').title = 'Pop Out Ticker';
 }
 
+// Defer PiP restoration so the main UI can render first — no morning lag
 async function restorePipState() {
+  if (_pipStartupDeferred) return;
+  _pipStartupDeferred = true;
+  // Wait for UI to fully paint before opening PiP window
+  await new Promise(r => setTimeout(r, 300));
   const wasActive = await window.api.getPipState();
   if (wasActive) {
     const ok = await pipOpen();
@@ -354,11 +371,14 @@ function renderTicker() {
   if (html) {
     ticker.innerHTML = html;
   } else {
-    ticker.innerHTML = ''; // Will be hidden; animation won't show anything
+    ticker.innerHTML = '';
   }
   if (pipActive) {
-    window.api.updatePip(html);
-    // Ensure interval is running (in case it died)
+    // Only push to PiP if content actually changed
+    if (html !== _lastPipHtml) {
+      _lastPipHtml = html;
+      window.api.updatePip(html);
+    }
     if (!pipInterval) startPipInterval();
   }
 }

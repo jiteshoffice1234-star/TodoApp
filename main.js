@@ -209,9 +209,13 @@ function createWindow() {
     for (const msg of notices) {
       new Notification({ title: 'Todo App', body: msg }).show();
     }
-    if (getSetting('pipActive') && (!pipWindow || pipWindow.isDestroyed())) {
-      openPipWindow();
-    }
+    // Defer PiP auto-restore so the main window paints first (faster morning startup)
+    setTimeout(() => {
+      if (mainWindow.isDestroyed()) return; // Don't create PiP if main window already closed
+      if (getSetting('pipActive') && (!pipWindow || pipWindow.isDestroyed())) {
+        openPipWindow();
+      }
+    }, 500);
   });
 
   mainWindow.on('close', (e) => {

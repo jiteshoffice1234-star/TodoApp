@@ -19,8 +19,12 @@ body.theme-clay { background: #3D3028; }
 #pipContent {
   display: inline-block; white-space: nowrap; will-change: transform;
   pointer-events: none; animation: scroll 30s linear infinite;
+  transition: opacity 0.25s ease; /* Smooth fade when content updates */
 }
-body:hover #pipContent { animation-play-state: paused; }
+body:hover #pipContent {
+  animation-play-state: paused;
+  opacity: 0.85 !important; /* Subtle dim on hover */
+}
 .ticker-item {
   display: inline-block; padding: 0 15px; font-weight: 600; font-size: 13px;
 }
@@ -60,14 +64,21 @@ function closePip() {
   window.pipApi.closePip();
 }
 
+// Smooth content update — fade out, swap, fade in (no jitter)
+let _pipFadeTimer = null;
 window.pipApi.onContent((html) => {
-  if (html && html.trim()) {
-    pipEl.innerHTML = html;
-  } else {
-    // Show a friendly empty-state when no pending tasks
-    pipEl.innerHTML = '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
-  }
+  clearTimeout(_pipFadeTimer); // Prevent stacked timeouts during rapid updates
+  pipEl.style.opacity = '0';
+  _pipFadeTimer = setTimeout(() => {
+    if (html && html.trim()) {
+      pipEl.innerHTML = html;
+    } else {
+      pipEl.innerHTML = '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
+    }
+    pipEl.style.opacity = '1';
+  }, 250); // matches CSS transition duration
 });
+
 window.pipApi.onTheme((theme) => {
   document.body.className = 'theme-' + theme;
 });
@@ -81,9 +92,7 @@ document.addEventListener('contextmenu', (e) => {
   closePip();
 });
 
-// Lightweight keep-alive: request a refresh every 10s (main pushes every 2s)
-setInterval(() => {
-  window.pipApi.requestRefresh();
-}, 10000);
+// REMOVED: Redundant 10s keep-alive — main window pushes every 5s with change detection
+// This was causing extra animation resets for no reason
 </script></body>
 </html>
