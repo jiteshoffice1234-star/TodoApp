@@ -14,6 +14,66 @@
 
 ---
 
+## 📥 Download & Install (Easy Steps for Everyone)
+
+> **New to GitHub? Don't worry!** Just follow these simple steps ⬇️
+
+---
+
+### 📱 Android Phone — Download the App (APK)
+
+An **APK** is the Android app installation file (like `.exe` on Windows).
+
+> ⚠️ **IMPORTANT:** The APK file is not yet available in the Releases section.
+> This is because building the APK needs a computer with at least **8GB of RAM**.
+> Please check back later, or **build it yourself** by following the [Build from Source](#flutter-app-android) instructions below.
+> If you're a developer and can help, open an [Issue](https://github.com/jiteshoffice1234-star/TodoApp/issues)!
+
+#### 👣 Step-by-Step Instructions (Once APK is Available):
+
+**Step 1:** Open this link on your phone:
+👉 **[https://github.com/jiteshoffice1234-star/TodoApp/releases/latest](https://github.com/jiteshoffice1234-star/TodoApp/releases/latest)**
+
+**Step 2:** You'll see a page with a big green button that says **"Latest Release"**. Scroll down a little.
+
+**Step 3:** Look for the **"Assets"** section (click/tap it to expand).
+
+**Step 4:** Tap the file that ends with **`.apk`** to start downloading.
+
+**Step 5:** Once downloaded, open the file. Your phone might ask:
+   > *"Install from unknown sources?"*
+   > Tap **"Settings"** → **"Allow from this source"** → Go back → Tap **"Install"**
+
+**Step 6:** Done! 🎉 Find the **Todo App** icon on your home screen and start organizing your tasks!
+
+---
+
+### 🖥️ Windows Desktop — Download the Portable App
+
+**Step 1:** Go to:
+👉 **[https://github.com/jiteshoffice1234-star/TodoApp/releases/latest](https://github.com/jiteshoffice1234-star/TodoApp/releases/latest)**
+
+**Step 2:** Scroll down to **"Assets"** and click to expand.
+
+**Step 3:** Download **one of these:**
+   - **`Todo-App-1.9.4-Portable.exe`** — Just double-click and it runs! No installation needed. ✅ *Recommended*
+   - **`Todo-App-Setup-1.9.4.exe`** — This installs the app properly (adds Start Menu shortcut)
+
+**Step 4:** Double-click the downloaded file and start using the app!
+
+---
+
+### 📦 All Download Options
+
+| Platform | Download | Size |
+|----------|----------|:----:|
+| 📱 Android | Build from source (see below) or check Releases | ~20 MB |
+| 🪟 Windows (Portable) | [Todo-App-1.9.4-Portable.exe](https://github.com/jiteshoffice1234-star/TodoApp/releases/download/v1.9.4/Todo-App-1.9.4-Portable.exe) | 70.9 MB |
+| 🪟 Windows (Setup) | [Todo-App-Setup-1.9.4.exe](https://github.com/jiteshoffice1234-star/TodoApp/releases/download/v1.9.4/Todo-App-Setup-1.9.4.exe) | 77.9 MB |
+| 🌐 Web Preview | [Run in Browser](https://github.com/jiteshoffice1234-star/TodoApp#getting-started) (local dev only — see setup guide) | — |
+
+---
+
 ## ✨ Features
 
 ### 📝 Task Management
