@@ -63,3 +63,4 @@ lib/firebase_options.dart
 *.log
 *.tmp
 coverage/
+TodoApp/
