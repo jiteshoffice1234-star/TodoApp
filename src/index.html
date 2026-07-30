@@ -34,6 +34,26 @@
         <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
         <button id="manageTags" class="icon-btn" title="Tags">🏷️</button>
         <button id="themeToggle" class="icon-btn" title="Toggle theme">🌙</button>
+        <button id="ambientBtn" class="icon-btn" title="Ambient Sounds">🔊</button>
+        <div id="ambientPicker" class="ambient-picker hidden">
+          <div class="ambient-header">
+            <span>🎵 Ambient</span>
+            <button class="ambient-close" id="ambientClose">✕</button>
+          </div>
+          <div class="ambient-options" id="ambientOptions">
+            <button class="ambient-opt" data-sound="off">🔇 Off</button>
+            <button class="ambient-opt" data-sound="rain">🌧 Rain</button>
+            <button class="ambient-opt" data-sound="ocean">🌊 Ocean</button>
+            <button class="ambient-opt" data-sound="forest">🌲 Forest</button>
+            <button class="ambient-opt" data-sound="coffee">☕ Coffee</button>
+            <button class="ambient-opt" data-sound="white">📡 White Noise</button>
+          </div>
+          <div class="ambient-volume-row">
+            <span class="ambient-vol-icon">🔈</span>
+            <input type="range" id="ambientVolume" class="ambient-slider" min="0" max="1" step="0.05" value="0.5" />
+            <span class="ambient-vol-icon">🔊</span>
+          </div>
+        </div>
         <button id="pipBtn" class="icon-btn" title="Pop Out Ticker">📺</button>
       </div>
     </header>
@@ -397,6 +417,7 @@
     </div>
   </div>
 
+  <script src="ambient_sounds.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

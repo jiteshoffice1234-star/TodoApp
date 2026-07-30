@@ -16,15 +16,18 @@ body.theme-neobrutalism { background: #1a1a00; }
 body.theme-glass { background: #000000; }
 body.theme-minimal { background: #000000; }
 body.theme-clay { background: #3D3028; }
+
 #pipContent {
-  display: inline-block; white-space: nowrap; will-change: transform;
-  pointer-events: none; animation: scroll 30s linear infinite;
-  transition: opacity 0.25s ease; /* Smooth fade when content updates */
+  display: inline-block; white-space: nowrap;
+  will-change: transform;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 body:hover #pipContent {
-  animation-play-state: paused;
-  opacity: 0.85 !important; /* Subtle dim on hover */
+  opacity: 0.85 !important;
 }
+
+/* Hover state is handled via JS _paused flag + CSS opacity on body:hover */
 .ticker-item {
   display: inline-block; padding: 0 15px; font-weight: 600; font-size: 13px;
 }
@@ -47,11 +50,6 @@ body.theme-clay .ticker-item { color: #D4A574; }
 body:hover #closeBtn { display: flex; }
 body.theme-neobrutalism #closeBtn { color: #FFD700; }
 body.theme-neobrutalism #closeBtn:hover { color: #ff4444; }
-
-@keyframes scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
 </style></head>
 <body class="theme-light">
   <div id="pipContent"></div>
@@ -60,39 +58,144 @@ body.theme-neobrutalism #closeBtn:hover { color: #ff4444; }
 const pipEl = document.getElementById('pipContent');
 const closeBtn = document.getElementById('closeBtn');
 
-function closePip() {
-  window.pipApi.closePip();
+// ========== JS-Driven Seamless Scrolling ==========
+// Using requestAnimationFrame for full control over scroll position.
+// When content updates, we save the scroll ratio so the animation
+// continues smoothly without resetting to 0.
+
+let _scrollPos = 0;          // current transform X in px (negative = scrolling left)
+let _scrollSpeed = 0.8;      // px per frame at 60fps (~48px/s ≈ 30s for ~1440px content)
+let _contentWidth = 0;       // width of one copy of the content
+let _rafId = null;
+let _paused = false;
+let _contentGeneration = 0;  // increments on each content swap so stale raf frames bail
+
+// Speed is auto-calculated based on content width: aim for ~30s per full cycle
+function calcSpeed(width) {
+  if (width <= 0) return 0.8;
+  // Target: full scroll (one copy width) in about 25–35 seconds
+  return Math.max(0.3, Math.min(2.5, width / (30 * 60))); // px/frame at 60fps
 }
 
-// Smooth content update — fade out, swap, fade in (no jitter)
-let _pipFadeTimer = null;
-window.pipApi.onContent((html) => {
-  clearTimeout(_pipFadeTimer); // Prevent stacked timeouts during rapid updates
-  pipEl.style.opacity = '0';
-  _pipFadeTimer = setTimeout(() => {
-    if (html && html.trim()) {
-      pipEl.innerHTML = html;
-    } else {
-      pipEl.innerHTML = '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
+function startScrolling() {
+  stopScrolling();
+  const gen = _contentGeneration;
+  _scrollSpeed = calcSpeed(_contentWidth);
+
+  function tick() {
+    if (_paused) { _rafId = requestAnimationFrame(tick); return; }
+    // Bail if content was swapped since this tick was scheduled
+    if (_contentGeneration !== gen) return;
+    if (_contentWidth <= 0) { _rafId = requestAnimationFrame(tick); return; }
+
+    _scrollPos -= _scrollSpeed;
+
+    // When we've scrolled one full copy width, reset to 0 (seamless loop)
+    if (Math.abs(_scrollPos) >= _contentWidth) {
+      _scrollPos += _contentWidth;
     }
+
+    pipEl.style.transform = 'translateX(' + _scrollPos + 'px)';
+    _rafId = requestAnimationFrame(tick);
+  }
+  _rafId = requestAnimationFrame(tick);
+}
+
+function stopScrolling() {
+  if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+}
+
+// Save the current scroll ratio before content update so we can resume from same visual position
+function saveScrollRatio() {
+  if (_contentWidth <= 0) return 0;
+  return Math.abs(_scrollPos) / _contentWidth; // 0..1
+}
+
+// Restore scroll from a saved ratio
+function restoreScrollRatio(ratio) {
+  if (_contentWidth <= 0) { _scrollPos = 0; return; }
+  _scrollPos = -(ratio * _contentWidth);
+  pipEl.style.transform = 'translateX(' + _scrollPos + 'px)';
+}
+
+// Set content and resume scrolling from the same visual position
+// Note: The HTML already contains duplicated items from app.js getTickerHTML()
+// for seamless scrolling — we just display it as-is.
+function setContent(html) {
+  // Save current scroll ratio before content swap
+  const ratio = saveScrollRatio();
+
+  // Remove leftover fade timer from previous update
+  if (window._pipFadeTimer) {
+    clearTimeout(window._pipFadeTimer);
+    window._pipFadeTimer = null;
+  }
+
+  // Update content
+  pipEl.style.opacity = '0';
+  window._pipFadeTimer = setTimeout(() => {
+    if (!html || !html.trim()) {
+      pipEl.innerHTML = '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
+      // Single-item content — scroll width is just its own width
+      _contentWidth = pipEl.scrollWidth;
+    } else {
+      pipEl.innerHTML = html;
+      // Content from app.js is already duplicated, so one copy = half the scrollWidth
+      _contentWidth = pipEl.scrollWidth / 2;
+    }
+    if (_contentWidth <= 0) _contentWidth = 1;
+
+    // Restore scroll position to the same visual ratio
+    restoreScrollRatio(ratio);
+
+    // Increment generation to cancel stale raf frames
+    _contentGeneration++;
+
     pipEl.style.opacity = '1';
-  }, 250); // matches CSS transition duration
+    window._pipFadeTimer = null;
+
+    // If scrolling was stopped (first content load), start it
+    if (!_rafId) {
+      startScrolling();
+    }
+  }, 200);
+}
+
+// Handle content updates from main process
+let _lastContentHtml = '';
+window.pipApi.onContent((html) => {
+  // Normalize: compare without whitespace differences
+  const normalized = (html || '').replace(/\s+/g, ' ').trim();
+  if (normalized === _lastContentHtml) return; // No real change — keep scrolling
+  _lastContentHtml = normalized;
+  setContent(html || '');
 });
 
+// Theme
 window.pipApi.onTheme((theme) => {
   document.body.className = 'theme-' + theme;
 });
 
 // Close button click
-closeBtn.addEventListener('click', closePip);
+closeBtn.addEventListener('click', () => { window.pipApi.closePip(); });
 
-// Right-click anywhere closes the PiP
+// Right-click anywhere closes
 document.addEventListener('contextmenu', (e) => {
   e.preventDefault();
-  closePip();
+  window.pipApi.closePip();
 });
 
-// REMOVED: Redundant 10s keep-alive — main window pushes every 5s with change detection
-// This was causing extra animation resets for no reason
+// Hover pause — use JS instead of CSS animation-play-state
+document.body.addEventListener('mouseenter', () => { _paused = true; });
+document.body.addEventListener('mouseleave', () => { _paused = false; });
+
+// Clean up on unload
+window.addEventListener('beforeunload', () => {
+  stopScrolling();
+  if (window._pipFadeTimer) clearTimeout(window._pipFadeTimer);
+});
+
+// Initialize with empty state if no content arrived yet
+// (setContent will be called by onContent when main window sends data)
 </script></body>
 </html>

@@ -71,11 +71,10 @@ async function init() {
   initDragDrop();
   checkDueNotifications();
   setInterval(checkDueNotifications, 60000);
-  // Re-sync PiP when main window is shown again
+  // Re-sync PiP when main window is shown again — let interval handle the push
   window.api.onPipSync(() => {
     if (pipActive) {
-      const html = getTickerHTML();
-      window.api.updatePip(html);
+      _lastPipHtml = null; // sentinel forces next interval push even if content is empty
       if (!pipInterval) startPipInterval();
     }
   });
@@ -88,6 +87,13 @@ async function init() {
   });
   // Auto-restore PiP if it was active before
   restorePipState();
+
+  // Ticker hover pause — pause JS-driven scroll on hover, resume on leave
+  const tickerWindow = document.querySelector('.ticker-window');
+  if (tickerWindow) {
+    tickerWindow.addEventListener('mouseenter', () => { _tickerPaused = true; });
+    tickerWindow.addEventListener('mouseleave', () => { _tickerPaused = false; });
+  }
 }
 
 function loadTheme() { currentTheme = localStorage.getItem('theme') || 'light'; applyTheme(); }
@@ -280,8 +286,15 @@ function getFilteredTodos() {
 // --- PiP Pop Out Ticker ---
 let pipActive = false;
 let pipInterval = null;
-let _lastPipHtml = ''; // Cache to avoid unnecessary updates that kill smooth scrolling
+let _lastPipHtml = null; // Cache: null = never pushed, '' = empty content pushed, string = content pushed
 let _pipStartupDeferred = false;
+
+// Ticker state (JS-driven scroll, same approach as PiP)
+let _tickerRafId = null;
+let _tickerPos = 0;
+let _tickerContentWidth = 0;
+let _tickerSpeed = 0; // px per frame, recalculated on every content update
+let _tickerPaused = false;
 
 const PIP_PRIORITY_ICONS = { high: '🔴', medium: '🟠', low: '🟢' };
 
@@ -317,7 +330,7 @@ async function pipOpen() {
   document.getElementById('pipBtn').textContent = '🔴';
   document.getElementById('pipBtn').title = 'Close Pop Out';
   await window.api.updatePipTheme(currentTheme);
-  _lastPipHtml = ''; // Reset cache so first push always goes through
+  _lastPipHtml = null; // Reset cache with sentinel so first push always goes through
   pushPipContentIfChanged();
   startPipInterval();
   return true;
@@ -330,10 +343,6 @@ function startPipInterval() {
     if (!pipActive) return;
     pushPipContentIfChanged();
   }, 5000);
-}
-
-function pushPipContent() {
-  pushPipContentIfChanged();
 }
 
 async function pipToggle() {
@@ -368,18 +377,50 @@ async function restorePipState() {
 function renderTicker() {
   const html = getTickerHTML();
   const ticker = document.getElementById('todoTicker');
-  if (html) {
+  if (!ticker) return;
+
+  // Save scroll ratio so we can restore position after content swap
+  // (same approach as the PiP ticker - prevents visual jump on every todo change)
+  const ratio = _tickerContentWidth > 0
+    ? Math.min(0.99, Math.abs(_tickerPos) / _tickerContentWidth)
+    : 0;
+
+  if (html && html.trim()) {
     ticker.innerHTML = html;
+    _tickerContentWidth = ticker.scrollWidth / 2 || 1;
+    _tickerPos = -(ratio * _tickerContentWidth);
+    if (_tickerPos > 0) _tickerPos = 0;
+    if (Math.abs(_tickerPos) >= _tickerContentWidth) _tickerPos = 0;
+    ticker.style.transform = 'translateX(' + _tickerPos + 'px)';
+
+    // Calculate speed for ~25s full cycle at 60fps (matching original CSS)
+    // Use shared _tickerSpeed so RAF loop reads latest value on each content update
+    _tickerSpeed = Math.max(0.3, Math.min(3.0, _tickerContentWidth / (25 * 60)));
+    _tickerRafId = _tickerRafId || requestAnimationFrame(function tickerLoop() {
+      if (!_tickerPaused) {
+        _tickerPos -= _tickerSpeed;
+        if (Math.abs(_tickerPos) >= _tickerContentWidth) {
+          _tickerPos = 0;
+        }
+      }
+      ticker.style.transform = 'translateX(' + _tickerPos + 'px)';
+      _tickerRafId = requestAnimationFrame(tickerLoop);
+    });
   } else {
-    ticker.innerHTML = '';
-  }
-  if (pipActive) {
-    // Only push to PiP if content actually changed
-    if (html !== _lastPipHtml) {
-      _lastPipHtml = html;
-      window.api.updatePip(html);
+    // Empty state — show static fallback, stop RAF loop
+    ticker.innerHTML = '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
+    ticker.style.transform = 'translateX(0)';
+    _tickerPos = 0;
+    _tickerContentWidth = 0;
+    if (_tickerRafId) {
+      cancelAnimationFrame(_tickerRafId);
+      _tickerRafId = null;
     }
-    if (!pipInterval) startPipInterval();
+  }
+
+  // Keep PiP interval running if PiP is active
+  if (pipActive && !pipInterval) {
+    startPipInterval();
   }
 }
 
@@ -619,6 +660,7 @@ function renderTimeline() {
   tl.classList.remove('hidden');
   const events = getTimelineEvents();
   const content = document.getElementById('tlContent');
+  const todayStr = new Date().toISOString().split('T')[0];
   if (events.length === 0) {
     content.innerHTML = '<div class="tl-empty">📭 No activity yet this week. Start adding and completing tasks!</div>';
     return;
@@ -674,7 +716,6 @@ function computeWeeklyStats() {
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekAgoStr = weekAgo.toISOString().split('T')[0];
   const weekTodos = data.todos.filter(t => t.updatedAt >= weekAgo.getTime() || t.createdAt >= weekAgo.getTime());
   const completedWeek = weekTodos.filter(t => t.completed && t.updatedAt >= weekAgo.getTime());
   const createdWeek = weekTodos.filter(t => t.createdAt >= weekAgo.getTime());
@@ -1648,6 +1689,32 @@ function bindEvents() {
   document.getElementById('subtaskInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addSubtask(); });
   document.getElementById('todoTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveTodo(); });
 
+  // Ambient sound controls
+  document.getElementById('ambientBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleAmbientPicker();
+  });
+  document.getElementById('ambientClose').addEventListener('click', () => {
+    document.getElementById('ambientPicker').classList.add('hidden');
+  });
+  document.querySelectorAll('.ambient-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      selectAmbientSound(opt.dataset.sound);
+    });
+  });
+  document.getElementById('ambientVolume').addEventListener('input', function () {
+    AmbientSounds.setVolume(parseFloat(this.value));
+  });
+  // Close ambient picker when clicking outside
+  document.addEventListener('click', (e) => {
+    const picker = document.getElementById('ambientPicker');
+    const btn = document.getElementById('ambientBtn');
+    if (picker && !picker.classList.contains('hidden') &&
+        !picker.contains(e.target) && !btn.contains(e.target)) {
+      picker.classList.add('hidden');
+    }
+  });
+
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', () => overlay.parentElement.classList.add('hidden'));
   });
@@ -1680,5 +1747,56 @@ window.initDragDrop = initDragDrop;
 window.cycleView = cycleView; window.renderTimeline = renderTimeline;
 window.onBoardCardDragStart = onBoardCardDragStart; window.onBoardDrop = onBoardDrop;
 window.openMoodModal = openMoodModal; window.closeMoodModal = closeMoodModal;
+
+// --- Ambient Sounds ---
+function toggleAmbientPicker() {
+  const picker = document.getElementById('ambientPicker');
+  if (!picker) return;
+  const isHidden = picker.classList.contains('hidden');
+  picker.classList.toggle('hidden');
+  // Refresh active state when opening
+  if (!isHidden) {
+    const btn = document.getElementById('ambientBtn');
+    if (btn) setTimeout(() => btn.focus(), 100);
+  }
+}
+function selectAmbientSound(type) {
+  if (type === 'off') {
+    AmbientSounds.stop();
+  } else {
+    AmbientSounds.start(type);
+  }
+  updateAmbientUI();
+}
+function updateAmbientUI() {
+  const state = AmbientSounds.getState();
+  const opts = document.querySelectorAll('.ambient-opt');
+  opts.forEach(opt => {
+    const sound = opt.dataset.sound;
+    const isActive = sound === 'off' && !state.playing ? true : sound === state.type && state.playing;
+    opt.classList.toggle('active', isActive);
+  });
+  // Update header button state
+  const btn = document.getElementById('ambientBtn');
+  if (btn) {
+    if (state.playing) {
+      btn.textContent = '🔊';
+      btn.title = `Playing: ${state.type} — Click to change`;
+      btn.classList.add('ambient-btn-active');
+    } else {
+      btn.textContent = '🔈';
+      btn.title = 'Ambient Sounds';
+      btn.classList.remove('ambient-btn-active');
+    }
+  }
+  // Sync volume slider
+  const slider = document.getElementById('ambientVolume');
+  if (slider) {
+    slider.value = AmbientSounds.getVolume();
+  }
+  // Close picker after selecting a sound (except for Off which also closes)
+  document.getElementById('ambientPicker').classList.add('hidden');
+}
+
 
 init();

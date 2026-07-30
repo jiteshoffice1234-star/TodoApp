@@ -34,33 +34,6 @@ function getSetting(key) {
   return d.settings ? d.settings[key] : undefined;
 }
 
-function checkDueDates(data) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split('T')[0];
-  let notifications = [];
-
-  for (const todo of data.todos) {
-    if (todo.completed || !todo.dueDate) continue;
-    if (todo.dueDate === todayStr) {
-      notifications.push(`"${todo.title}" is due today!`);
-    } else if (todo.dueDate < todayStr) {
-      const overdue = Math.floor((today.getTime() - new Date(todo.dueDate).getTime()) / 86400000);
-      if (overdue === 1) {
-        notifications.push(`"${todo.title}" is 1 day overdue!`);
-      } else if (overdue > 1) {
-        notifications.push(`"${todo.title}" is ${overdue} days overdue!`);
-      }
-    }
-    // Check reminders
-    if (todo.reminderAt && todo.reminderAt <= Date.now() && !todo.reminderFired) {
-      notifications.push(`Reminder: "${todo.title}"`);
-      todo.reminderFired = true;
-    }
-  }
-  return notifications;
-}
-
 // Process recurring todos
 function processRecurring(data) {
   const today = new Date().toISOString().split('T')[0];
@@ -124,8 +97,6 @@ function getNextRecurringDate(recurring, baseDate) {
 
 let mainWindow;
 let pipWindow = null;
-let pipRestorePending = false;
-let pomodoroTimers = {};
 let cachedPipHtml = '';
 
 function openPipWindow() {
@@ -141,43 +112,51 @@ function openPipWindow() {
   });
   pipWindow.loadFile(path.join(__dirname, 'src', 'pip.html'));
   pipWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  // Clean up pip state once page is ready; send any cached content
+  pipWindow.webContents.once('did-finish-load', () => {
+    if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
+  });
+
   pipWindow.on('closed', () => {
     pipWindow = null;
     saveSetting('pipActive', false);
-    // Notify main window so it knows PiP closed (handles Alt+F4 / system close)
+    // Notify main window so it knows PiP closed
     if (mainWindow && !mainWindow.isDestroyed()) {
       try { mainWindow.webContents.send('pip:closed-by-pip'); } catch(e) {}
     }
   });
-  pipWindow.webContents.on('did-finish-load', () => {
-    if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
-  });
   return true;
 }
+
 // Queue messages sent while PiP is still loading, then flush on load
 let pipPendingMessages = [];
 let pipLoadHandlerAttached = false;
 
 function sendToPip(channel, ...args) {
   if (!pipWindow || pipWindow.isDestroyed()) return;
-  if (pipWindow.webContents.isLoading()) {
-    // Queue the message instead of adding multiple once listeners
-    pipPendingMessages.push({ channel, args });
-    if (!pipLoadHandlerAttached) {
-      pipLoadHandlerAttached = true;
-      pipWindow.webContents.once('did-finish-load', () => {
-        pipLoadHandlerAttached = false;
-        const msgs = pipPendingMessages.slice();
-        pipPendingMessages = [];
-        for (const m of msgs) {
-          if (pipWindow && !pipWindow.isDestroyed()) {
-            try { pipWindow.webContents.send(m.channel, ...m.args); } catch(e) {}
+  try {
+    if (pipWindow.webContents.isLoading() || pipWindow.webContents.isWaitingForResponse()) {
+      pipPendingMessages.push({ channel, args });
+      if (!pipLoadHandlerAttached) {
+        pipLoadHandlerAttached = true;
+        pipWindow.webContents.once('did-finish-load', () => {
+          pipLoadHandlerAttached = false;
+          const msgs = pipPendingMessages.slice();
+          pipPendingMessages = [];
+          for (const m of msgs) {
+            if (pipWindow && !pipWindow.isDestroyed()) {
+              try { pipWindow.webContents.send(m.channel, ...m.args); } catch(e) {}
+            }
           }
-        }
-      });
+        });
+      }
+    } else {
+      pipWindow.webContents.send(channel, ...args);
     }
-  } else {
-    try { pipWindow.webContents.send(channel, ...args); } catch(e) {}
+  } catch(e) {
+    // If webContents is not available, queue for retry
+    pipPendingMessages.push({ channel, args });
   }
 }
 
@@ -204,11 +183,8 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     const data = loadData();
     processRecurring(data);
-    const notices = checkDueDates(data);
     saveData(data);
-    for (const msg of notices) {
-      new Notification({ title: 'Todo App', body: msg }).show();
-    }
+    // Notifications are handled by the renderer process (app.js) to avoid duplicates
     // Defer PiP auto-restore so the main window paints first (faster morning startup)
     setTimeout(() => {
       if (mainWindow.isDestroyed()) return; // Don't create PiP if main window already closed
@@ -221,6 +197,7 @@ function createWindow() {
   mainWindow.on('close', (e) => {
     if (pipWindow && !pipWindow.isDestroyed()) {
       e.preventDefault();
+      // Keep PiP alive but hide the main window to system tray
       mainWindow.hide();
     }
   });
@@ -240,8 +217,12 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // If PiP is still open, don't quit — wait for it to close
   if (pipWindow && !pipWindow.isDestroyed()) return;
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    // Final safety net: force quit if main window hidden + PiP closed
+    app.quit();
+  }
 });
 
 // IPC Handlers

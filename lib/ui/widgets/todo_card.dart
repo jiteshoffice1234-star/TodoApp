@@ -54,6 +54,12 @@ class TodoCard extends StatelessWidget {
           curve: Curves.easeOut,
           duration: (400 + index * 60).ms,
         ),
+        if (!todo.isDone)
+          ShimmerEffect(
+            duration: 2000.ms,
+            delay: (200 + index * 30).ms,
+            color: theme.colorScheme.primary.withOpacity(0.03),
+          ),
       ],
       child: Dismissible(
         key: Key('todo_${todo.id}'),

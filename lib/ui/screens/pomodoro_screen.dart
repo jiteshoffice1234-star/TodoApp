@@ -114,12 +114,28 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                 children: [
                   ...List.generate(4, (index) {
                     final isActive = index < pomodoro.sessionCount % 4;
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: 12, height: 12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isActive ? theme.colorScheme.primary : theme.colorScheme.surfaceContainerHighest,
+                    return Animate(
+                      effects: [
+                        ScaleEffect(
+                          begin: const Offset(0, 0),
+                          end: const Offset(1, 1),
+                          duration: 400.ms,
+                          curve: Curves.easeOutBack,
+                        ),
+                        if (isActive)
+                          FadeEffect(
+                            begin: 0,
+                            end: 1,
+                            duration: 300.ms,
+                          ),
+                      ],
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: 12, height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isActive ? theme.colorScheme.primary : theme.colorScheme.surfaceContainerHighest,
+                        ),
                       ),
                     );
                   }),
