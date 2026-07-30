@@ -98,6 +98,9 @@ async function init() {
   // Setup update listeners
   setupUpdateListeners();
 
+  // Initialize Lottie animation for auto-updater UI
+  initUpdateAnimation();
+
   // Sync with main process's current update state (handles race where
   // initial 5-second auto-check completed before listeners were registered)
   if (typeof window.api.getUpdateStatus === 'function') {
@@ -1770,6 +1773,8 @@ window.quitAndInstall = quitAndInstall;
 // --- Settings & Updates ---
 function openSettings() {
   document.getElementById('settingsModal').classList.remove('hidden');
+  // Show the update animation when settings opens
+  showUpdateAnimation(true);
   // Refresh update status from main process (handles case where
   // state changed since startup — e.g., another auto-check completed)
   if (typeof window.api.getUpdateStatus === 'function') {
@@ -1780,11 +1785,32 @@ function openSettings() {
     refreshUpdateUI();
   }
 }
+
 function closeSettings() {
   document.getElementById('settingsModal').classList.add('hidden');
+  // Hide animation when settings closes
+  showUpdateAnimation(false);
+}
+let _updateState = { status: 'idle', info: null, progress: null, error: null };
+
+// Initialize the update animation (CSS-only cat crying fallback — no external deps needed)
+function initUpdateAnimation() {
+  const container = document.getElementById('lottieAnimation');
+  if (!container) return;
+  container.innerHTML = '<div class="cat-crying-fallback" title="Cat crying emoji — check for updates">'
+    + '😿'
+    + '<span class="tear left">💧</span>'
+    + '<span class="tear right">💧</span>'
+    + '<span class="tear" style="left:16px;animation-delay:0.8s;animation-duration:1.1s;">💧</span>'
+    + '</div>';
 }
 
-let _updateState = { status: 'idle', info: null, progress: null, error: null };
+// Show/hide the update animation
+function showUpdateAnimation(show) {
+  const wrap = document.getElementById('updateAnimationWrap');
+  if (!wrap) return;
+  wrap.classList.toggle('hidden', !show);
+}
 
 function setupUpdateListeners() {
   if (typeof window.api.onUpdateStatus === 'function') {
@@ -1883,16 +1909,45 @@ function refreshUpdateUI() {
 }
 
 async function manualCheckUpdates() {
-  if (typeof window.api.checkForUpdates === 'function') {
-    _updateState = { status: 'checking', info: null, progress: null, error: null };
+  if (typeof window.api.checkForUpdates !== 'function') return;
+  
+  _updateState = { status: 'checking', info: null, progress: null, error: null };
+  refreshUpdateUI();
+  
+  // Safety timeout: if no event fires within 30s, revert to idle/error
+  const checkTimeout = setTimeout(() => {
+    if (_updateState.status === 'checking') {
+      _updateState = { status: 'error', info: null, progress: null, error: 'Update check timed out. Check your internet connection.' };
+      refreshUpdateUI();
+    }
+  }, 30000);
+  
+  try {
+    const ok = await window.api.checkForUpdates();
+    clearTimeout(checkTimeout);
+    if (!ok && _updateState.status === 'checking') {
+      // checkForUpdates() returned false but no error event fired — unlikely but handle it
+      _updateState = { status: 'error', info: null, progress: null, error: 'Failed to start update check.' };
+      refreshUpdateUI();
+    }
+  } catch(e) {
+    clearTimeout(checkTimeout);
+    _updateState = { status: 'error', info: null, progress: null, error: e.message || 'Update check failed.' };
     refreshUpdateUI();
-    await window.api.checkForUpdates();
   }
 }
 
 async function startUpdateDownload() {
-  if (typeof window.api.startDownload === 'function') {
-    await window.api.startDownload();
+  if (typeof window.api.startDownload !== 'function') return;
+  const ok = await window.api.startDownload();
+  if (!ok) {
+    showToast('Could not start download — update may no longer be available', '⚠️', 4000);
+    // Refresh state in case it changed
+    if (typeof window.api.getUpdateStatus === 'function') {
+      window.api.getUpdateStatus().then((state) => {
+        if (state) { _updateState = state; refreshUpdateUI(); }
+      }).catch(() => {});
+    }
   }
 }
 

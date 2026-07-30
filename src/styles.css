@@ -1762,6 +1762,78 @@ body.theme-glass .ambient-picker {
   font-variant-numeric: tabular-nums;
 }
 
+.update-animation-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--surface-variant);
+  min-height: 80px;
+  transition: background 0.3s var(--ease-smooth);
+  overflow: hidden;
+  position: relative;
+}
+.lottie-animation {
+  width: 80px;
+  height: 80px;
+}
+
+/* Cat crying fallback — pure CSS, no external assets needed */
+@keyframes cat-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  15%      { transform: translateY(-4px) scale(1.05); }
+  30%      { transform: translateY(0) scale(1); }
+  45%      { transform: translateY(-2px) scale(1.02); }
+  60%      { transform: translateY(0) scale(1); }
+}
+@keyframes tear-drop {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  80%  { transform: translateY(20px) scale(0.6); opacity: 0.7; }
+  100% { transform: translateY(28px) scale(0.3); opacity: 0; }
+}
+@keyframes tear-sway {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(3px); }
+}
+.cat-crying-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: cat-bounce 2.5s ease-in-out infinite;
+  font-size: 44px;
+  line-height: 1;
+  position: relative;
+  cursor: default;
+  user-select: none;
+}
+.cat-crying-fallback .tear {
+  position: absolute;
+  bottom: -2px;
+  font-size: 12px;
+  opacity: 0;
+  animation: tear-drop 1.2s ease-in infinite;
+}
+.cat-crying-fallback .tear.left {
+  left: 10px;
+  animation-delay: 0.2s;
+  animation-name: tear-drop, tear-sway;
+  animation-duration: 1.2s, 0.6s;
+}
+.cat-crying-fallback .tear.right {
+  right: 10px;
+  animation-delay: 0.6s;
+  animation-name: tear-drop, tear-sway;
+  animation-duration: 1.4s, 0.8s;
+}
+.cat-crying-fallback .tear:nth-child(3) {
+  left: 18px;
+  animation-delay: 1.0s;
+  animation-duration: 1.0s;
+}
+
 .about-info {
   display: flex;
   flex-direction: column;

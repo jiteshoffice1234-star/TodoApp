@@ -14,6 +14,7 @@ let updateState = {
   progress: null,
   error: null,
 };
+let _updateCheckInProgress = false; // Prevents concurrent checkForUpdates() calls
 
 function sendUpdateEvent(channel, data) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -262,6 +263,7 @@ app.whenReady().then(() => {
   });
   // Deferred auto-update check — let the app paint first
   setTimeout(() => {
+    if (_updateCheckInProgress) return; // Don't stack with user-initiated check
     try { autoUpdater.checkForUpdates(); } catch(e) { console.error('Update check failed:', e); }
   }, 5000);
 });
@@ -338,11 +340,15 @@ ipcMain.handle('pip:drag-move', (_, x, y) => {
 
 // --- Update IPC handlers ---
 ipcMain.handle('update:check', async () => {
+  if (_updateCheckInProgress) return false; // Already checking — don't stack
+  _updateCheckInProgress = true;
   try {
     await autoUpdater.checkForUpdates();
     return true;
   } catch(e) {
     return false;
+  } finally {
+    _updateCheckInProgress = false;
   }
 });
 
