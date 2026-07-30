@@ -164,10 +164,6 @@ function openPipWindow() {
   pipWindow.setAlwaysOnTop(true, 'screen-saver');
 
   // Clean up pip state once page is ready; send any cached content
-  pipWindow.webContents.once('did-finish-load', () => {
-    if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
-  });
-
   pipWindow.on('closed', () => {
     pipWindow = null;
     saveSetting('pipActive', false);
@@ -339,10 +335,6 @@ ipcMain.handle('pip:drag-move', (_, x, y) => {
   return true;
 });
 
-ipcMain.handle('pip:request-refresh', () => {
-  if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
-  return true;
-});
 
 // --- Update IPC handlers ---
 ipcMain.handle('update:check', async () => {

@@ -97,6 +97,17 @@ async function init() {
 
   // Setup update listeners
   setupUpdateListeners();
+
+  // Sync with main process's current update state (handles race where
+  // initial 5-second auto-check completed before listeners were registered)
+  if (typeof window.api.getUpdateStatus === 'function') {
+    window.api.getUpdateStatus().then((state) => {
+      if (state && state.status !== 'idle') {
+        _updateState = state;
+        refreshUpdateUI();
+      }
+    }).catch(() => {});
+  }
 }
 
 function loadTheme() { currentTheme = localStorage.getItem('theme') || 'light'; applyTheme(); }
@@ -1759,8 +1770,15 @@ window.quitAndInstall = quitAndInstall;
 // --- Settings & Updates ---
 function openSettings() {
   document.getElementById('settingsModal').classList.remove('hidden');
-  // Refresh update status display
-  refreshUpdateUI();
+  // Refresh update status from main process (handles case where
+  // state changed since startup — e.g., another auto-check completed)
+  if (typeof window.api.getUpdateStatus === 'function') {
+    window.api.getUpdateStatus().then((state) => {
+      if (state) { _updateState = state; refreshUpdateUI(); }
+    }).catch(() => refreshUpdateUI());
+  } else {
+    refreshUpdateUI();
+  }
 }
 function closeSettings() {
   document.getElementById('settingsModal').classList.add('hidden');
