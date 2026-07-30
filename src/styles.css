@@ -1698,3 +1698,76 @@ body.theme-glass .ambient-picker {
   0%, 100% { box-shadow: 0 0 0 0 rgba(63,108,79,0.3); }
   50% { box-shadow: 0 0 0 6px rgba(63,108,79,0); }
 }
+
+/* ===== SETTINGS / UPDATES ===== */
+.settings-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  transition: border-color 0.4s var(--ease-smooth);
+}
+.settings-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.settings-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.update-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--text-variant);
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.update-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.update-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--surface-variant);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.update-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-hover));
+  border-radius: 3px;
+  transition: width 0.3s var(--ease-smooth);
+}
+.update-progress-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-variant);
+  min-width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.about-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-variant);
+}
+

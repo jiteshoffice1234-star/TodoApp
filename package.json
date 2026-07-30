@@ -29,6 +29,11 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },
+    "publish": {
+      "provider": "github",
+      "owner": "jiteshoffice1234-star",
+      "repo": "TodoApp"
+    },
     "files": [
       "main.js",
       "preload.js",
@@ -36,9 +41,15 @@
       "node_modules/**/*"
     ]
   },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "rcedit": "^5.0.2"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

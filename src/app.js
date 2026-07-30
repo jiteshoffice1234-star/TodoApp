@@ -94,6 +94,9 @@ async function init() {
     tickerWindow.addEventListener('mouseenter', () => { _tickerPaused = true; });
     tickerWindow.addEventListener('mouseleave', () => { _tickerPaused = false; });
   }
+
+  // Setup update listeners
+  setupUpdateListeners();
 }
 
 function loadTheme() { currentTheme = localStorage.getItem('theme') || 'light'; applyTheme(); }
@@ -1614,6 +1617,7 @@ function bindEvents() {
   document.getElementById('pipBtn').addEventListener('click', pipToggle);
   document.getElementById('clearCompleted').addEventListener('click', clearCompleted);
   document.getElementById('manageTags').addEventListener('click', openTagModal);
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('addTagBtn').addEventListener('click', addTag);
   document.getElementById('multiSelectBtn').addEventListener('click', toggleMultiSelect);
   document.getElementById('pomodoroBtn').addEventListener('click', openPomodoro);
@@ -1747,6 +1751,138 @@ window.initDragDrop = initDragDrop;
 window.cycleView = cycleView; window.renderTimeline = renderTimeline;
 window.onBoardCardDragStart = onBoardCardDragStart; window.onBoardDrop = onBoardDrop;
 window.openMoodModal = openMoodModal; window.closeMoodModal = closeMoodModal;
+window.openSettings = openSettings; window.closeSettings = closeSettings;
+window.manualCheckUpdates = manualCheckUpdates;
+window.startUpdateDownload = startUpdateDownload;
+window.quitAndInstall = quitAndInstall;
+
+// --- Settings & Updates ---
+function openSettings() {
+  document.getElementById('settingsModal').classList.remove('hidden');
+  // Refresh update status display
+  refreshUpdateUI();
+}
+function closeSettings() {
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+let _updateState = { status: 'idle', info: null, progress: null, error: null };
+
+function setupUpdateListeners() {
+  if (typeof window.api.onUpdateStatus === 'function') {
+    window.api.onUpdateStatus((state) => {
+      _updateState = state;
+      refreshUpdateUI();
+      // Show toast for significant events
+      if (state.status === 'available') {
+        showToast('Update v' + (state.info?.version || '?') + ' available! Open Settings to download', '📦');
+      } else if (state.status === 'not-available') {
+        // Silent — only show in settings panel
+      } else if (state.status === 'downloaded') {
+        showToast('Update downloaded! Restart to install', '🚀');
+      } else if (state.status === 'error') {
+        // Show error only in settings, not on first auto-check
+      }
+    });
+    window.api.onUpdateProgress((progress) => {
+      _updateState = { ..._updateState, status: 'downloading', progress };
+      refreshUpdateUI();
+    });
+  }
+}
+
+function refreshUpdateUI() {
+  const statusText = document.getElementById('updateStatusText');
+  const checkBtn = document.getElementById('checkUpdateBtn');
+  const downloadBtn = document.getElementById('downloadUpdateBtn');
+  const installBtn = document.getElementById('installUpdateBtn');
+  const progressWrap = document.getElementById('updateProgressWrap');
+  const progressFill = document.getElementById('updateProgressFill');
+  const progressText = document.getElementById('updateProgressText');
+  if (!statusText) return;
+
+  switch (_updateState.status) {
+    case 'idle':
+      statusText.textContent = '🔍 Tap "Check for Updates" to check';
+      checkBtn.classList.remove('hidden');
+      downloadBtn.classList.add('hidden');
+      installBtn.classList.add('hidden');
+      progressWrap.classList.add('hidden');
+      break;
+    case 'checking':
+      statusText.textContent = '⏳ Checking for updates...';
+      checkBtn.classList.add('hidden');
+      downloadBtn.classList.add('hidden');
+      installBtn.classList.add('hidden');
+      progressWrap.classList.add('hidden');
+      break;
+    case 'available':
+      statusText.innerHTML = `📦 <strong>v${_updateState.info?.version || '?'}</strong> available!`;
+      checkBtn.classList.add('hidden');
+      downloadBtn.classList.remove('hidden');
+      installBtn.classList.add('hidden');
+      progressWrap.classList.add('hidden');
+      break;
+    case 'not-available':
+      statusText.textContent = '✅ You\'re on the latest version!';
+      checkBtn.classList.remove('hidden');
+      downloadBtn.classList.add('hidden');
+      installBtn.classList.add('hidden');
+      progressWrap.classList.add('hidden');
+      break;
+    case 'downloading':
+      if (_updateState.progress) {
+        const pct = Math.round(_updateState.progress.percent || 0);
+        statusText.textContent = `⬇ Downloading... ${pct}%`;
+        progressFill.style.width = pct + '%';
+        progressText.textContent = pct + '%';
+        progressWrap.classList.remove('hidden');
+      } else {
+        statusText.textContent = '⬇ Downloading...';
+        progressWrap.classList.remove('hidden');
+      }
+      checkBtn.classList.add('hidden');
+      downloadBtn.classList.add('hidden');
+      installBtn.classList.add('hidden');
+      break;
+    case 'downloaded':
+      statusText.innerHTML = '✅ <strong>Downloaded!</strong> Restart to install';
+      checkBtn.classList.add('hidden');
+      downloadBtn.classList.add('hidden');
+      installBtn.classList.remove('hidden');
+      progressWrap.classList.add('hidden');
+      break;
+    case 'error':
+      statusText.textContent = '⚠ ' + (_updateState.error || 'Update check failed. Check your connection.') + ' — You can try again';
+      checkBtn.classList.remove('hidden');
+      downloadBtn.classList.add('hidden');
+      installBtn.classList.add('hidden');
+      progressWrap.classList.add('hidden');
+      break;
+    default:
+      statusText.textContent = 'Update status unknown';
+  }
+}
+
+async function manualCheckUpdates() {
+  if (typeof window.api.checkForUpdates === 'function') {
+    _updateState = { status: 'checking', info: null, progress: null, error: null };
+    refreshUpdateUI();
+    await window.api.checkForUpdates();
+  }
+}
+
+async function startUpdateDownload() {
+  if (typeof window.api.startDownload === 'function') {
+    await window.api.startDownload();
+  }
+}
+
+function quitAndInstall() {
+  if (typeof window.api.quitAndInstall === 'function') {
+    window.api.quitAndInstall();
+  }
+}
 
 // --- Ambient Sounds ---
 function toggleAmbientPicker() {

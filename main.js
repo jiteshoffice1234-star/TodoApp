@@ -1,6 +1,56 @@
 const { app, BrowserWindow, ipcMain, dialog, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
+
+// --- Auto Updater Configuration ---
+// Provider config is read from package.json's "build.publish" section
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+
+let updateState = {
+  status: 'idle', // idle | checking | available | not-available | downloading | downloaded | error
+  info: null,
+  progress: null,
+  error: null,
+};
+
+function sendUpdateEvent(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.send('update:' + channel, data); } catch(e) {}
+  }
+}
+
+// Auto-updater events
+autoUpdater.on('checking-for-update', () => {
+  updateState = { status: 'checking', info: null, progress: null, error: null };
+  sendUpdateEvent('status', updateState);
+});
+
+autoUpdater.on('update-available', (info) => {
+  updateState = { status: 'available', info, progress: null, error: null };
+  sendUpdateEvent('status', updateState);
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  updateState = { status: 'not-available', info, progress: null, error: null };
+  sendUpdateEvent('status', updateState);
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  updateState = { ...updateState, status: 'downloading', progress };
+  sendUpdateEvent('progress', progress);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  updateState = { status: 'downloaded', info, progress: null, error: null };
+  sendUpdateEvent('status', updateState);
+});
+
+autoUpdater.on('error', (err) => {
+  updateState = { status: 'error', info: null, progress: null, error: err.message || String(err) };
+  sendUpdateEvent('status', updateState);
+});
 
 const DATA_DIR = app.getPath('userData');
 const DATA_FILE = path.join(DATA_DIR, 'todos.json');
@@ -214,6 +264,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+  // Deferred auto-update check — let the app paint first
+  setTimeout(() => {
+    try { autoUpdater.checkForUpdates(); } catch(e) { console.error('Update check failed:', e); }
+  }, 5000);
 });
 
 app.on('window-all-closed', () => {
@@ -288,4 +342,34 @@ ipcMain.handle('pip:drag-move', (_, x, y) => {
 ipcMain.handle('pip:request-refresh', () => {
   if (cachedPipHtml) sendToPip('pip:set-content', cachedPipHtml);
   return true;
+});
+
+// --- Update IPC handlers ---
+ipcMain.handle('update:check', async () => {
+  try {
+    await autoUpdater.checkForUpdates();
+    return true;
+  } catch(e) {
+    return false;
+  }
+});
+
+ipcMain.handle('update:get-status', () => updateState);
+
+ipcMain.handle('update:start-download', () => {
+  if (updateState.status === 'available') {
+    autoUpdater.autoDownload = true;
+    autoUpdater.downloadUpdate();
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('update:quit-and-install', () => {
+  if (updateState.status === 'downloaded') {
+    autoUpdater.autoInstallOnAppQuit = true;
+    setImmediate(() => autoUpdater.quitAndInstall());
+    return true;
+  }
+  return false;
 });
