@@ -162,14 +162,18 @@ function setContent(html) {
 }
 
 // Handle content updates from main process
-let _lastContentHtml = '';
+// Using null sentinel so the first call (even with empty content) always goes through
+let _lastContentHtml = null;
+
 window.pipApi.onContent((html) => {
-  // Normalize: compare without whitespace differences
   const normalized = (html || '').replace(/\s+/g, ' ').trim();
   if (normalized === _lastContentHtml) return; // No real change — keep scrolling
   _lastContentHtml = normalized;
   setContent(html || '');
 });
+
+// The main process sends cached content on did-finish-load, so no need to requestRefresh() here.
+// The sentinel null above ensures the first content (even if empty) is always processed.
 
 // Theme
 window.pipApi.onTheme((theme) => {
@@ -195,7 +199,7 @@ window.addEventListener('beforeunload', () => {
   if (window._pipFadeTimer) clearTimeout(window._pipFadeTimer);
 });
 
-// Initialize with empty state if no content arrived yet
-// (setContent will be called by onContent when main window sends data)
+// Initialize: request a refresh of content from main process
+// (the main process caches the latest HTML and sends it when requested)
 </script></body>
 </html>
