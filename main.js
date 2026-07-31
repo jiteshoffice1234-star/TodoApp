@@ -164,6 +164,14 @@ function openPipWindow() {
   pipWindow.loadFile(path.join(__dirname, 'src', 'pip.html'));
   pipWindow.setAlwaysOnTop(true, 'screen-saver');
 
+  // Always re-send the latest cached content once the page finishes loading,
+  // so a freshly created PiP window never starts blank.
+  pipWindow.webContents.once('did-finish-load', () => {
+    if (pipWindow && !pipWindow.isDestroyed() && cachedPipHtml !== '') {
+      try { pipWindow.webContents.send('pip:set-content', cachedPipHtml); } catch(e) {}
+    }
+  });
+
   // Clean up pip state once page is ready; send any cached content
   pipWindow.on('closed', () => {
     pipWindow = null;

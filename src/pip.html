@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
 body {
   overflow: hidden; font-family: 'Segoe UI', sans-serif; height: 100vh;
   display: flex; align-items: center; -webkit-app-region: drag; user-select: none;
+  cursor: default;
 }
 body.theme-light { background: #1a1a1a; }
 body.theme-dark { background: #0a0a0a; }
@@ -17,19 +19,31 @@ body.theme-glass { background: #000000; }
 body.theme-minimal { background: #000000; }
 body.theme-clay { background: #3D3028; }
 
+/* Viewport clips the train and gives a soft edge fade (mask is fixed to the
+   container, so the moving content fades in/out at the sides). */
+#pipViewport {
+  position: relative; width: 100%; height: 100%;
+  overflow: hidden; display: flex; align-items: center;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+}
+
 #pipContent {
   display: inline-block; white-space: nowrap;
   will-change: transform;
   pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-body:hover #pipContent {
-  opacity: 0.85 !important;
+  transition: opacity 0.25s ease;
 }
 
-/* Hover state is handled via JS _paused flag + CSS opacity on body:hover */
+/* Hover pause is handled via JS _paused flag. The dim is applied in JS too
+   (not CSS !important) so it never fights the fade-in/out transition. */
+body:hover #pipContent {
+  opacity: 0.85;
+}
+
 .ticker-item {
   display: inline-block; padding: 0 15px; font-weight: 600; font-size: 13px;
+  white-space: nowrap;
 }
 body.theme-light .ticker-item { color: #00ffcc; }
 body.theme-dark .ticker-item { color: #00ffcc; }
@@ -52,154 +66,156 @@ body.theme-neobrutalism #closeBtn { color: #FFD700; }
 body.theme-neobrutalism #closeBtn:hover { color: #ff4444; }
 </style></head>
 <body class="theme-light">
-  <div id="pipContent"></div>
+  <div id="pipViewport">
+    <div id="pipContent"></div>
+  </div>
   <button id="closeBtn" title="Close (right-click anywhere)">✕</button>
 <script>
-const pipEl = document.getElementById('pipContent');
-const closeBtn = document.getElementById('closeBtn');
+(function() {
+  const viewport = document.getElementById('pipViewport');
+  const pipEl = document.getElementById('pipContent');
+  const closeBtn = document.getElementById('closeBtn');
 
-// ========== JS-Driven Seamless Scrolling ==========
-// Using requestAnimationFrame for full control over scroll position.
-// When content updates, we save the scroll ratio so the animation
-// continues smoothly without resetting to 0.
+  // ========== Seamless JS-Driven Scrolling ==========
+  // A SINGLE persistent RAF loop reads the latest state every frame.
+  // It always reschedules itself, so a content swap can never kill it.
+  // (The old implementation bailed out of the loop on content updates
+  //  but left _rafId set, permanently freezing the ticker.)
 
-let _scrollPos = 0;          // current transform X in px (negative = scrolling left)
-let _scrollSpeed = 0.8;      // px per frame at 60fps (~48px/s ≈ 30s for ~1440px content)
-let _contentWidth = 0;       // width of one copy of the content
-let _rafId = null;
-let _paused = false;
-let _contentGeneration = 0;  // increments on each content swap so stale raf frames bail
+  let _scrollPos = 0;       // current translateX (negative = scrolled left)
+  let _scrollSpeed = 0.8;   // px per frame at 60fps
+  let _oneCopyWidth = 0;    // width of a single content copy
+  let _singleHtml = '';     // the raw single-copy content (for re-render on resize)
+  let _rafId = null;
+  let _paused = false;
 
-// Speed is auto-calculated based on content width: aim for ~30s per full cycle
-function calcSpeed(width) {
-  if (width <= 0) return 0.8;
-  // Target: full scroll (one copy width) in about 25–35 seconds
-  return Math.max(0.3, Math.min(2.5, width / (30 * 60))); // px/frame at 60fps
-}
+  // Speed aims for ~30s per full copy width
+  function calcSpeed(width) {
+    if (width <= 0) return 0.8;
+    return Math.max(0.3, Math.min(2.5, width / (30 * 60)));
+  }
 
-function startScrolling() {
-  stopScrolling();
-  const gen = _contentGeneration;
-  _scrollSpeed = calcSpeed(_contentWidth);
-
+  // Persistent loop — never bails permanently.
   function tick() {
-    if (_paused) { _rafId = requestAnimationFrame(tick); return; }
-    // Bail if content was swapped since this tick was scheduled
-    if (_contentGeneration !== gen) return;
-    if (_contentWidth <= 0) { _rafId = requestAnimationFrame(tick); return; }
-
+    _rafId = requestAnimationFrame(tick);
+    if (_paused || _oneCopyWidth <= 0) return;
     _scrollPos -= _scrollSpeed;
-
-    // When we've scrolled one full copy width, reset to 0 (seamless loop)
-    if (Math.abs(_scrollPos) >= _contentWidth) {
-      _scrollPos += _contentWidth;
-    }
-
+    // Seamless loop: wrap by one copy width, not reset to 0, so the
+    // duplicated train gives an unbroken scroll.
+    if (Math.abs(_scrollPos) >= _oneCopyWidth) _scrollPos += _oneCopyWidth;
     pipEl.style.transform = 'translateX(' + _scrollPos + 'px)';
+  }
+
+  function startLoop() {
+    if (_rafId) return; // already running
     _rafId = requestAnimationFrame(tick);
   }
-  _rafId = requestAnimationFrame(tick);
-}
 
-function stopScrolling() {
-  if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-}
-
-// Save the current scroll ratio before content update so we can resume from same visual position
-function saveScrollRatio() {
-  if (_contentWidth <= 0) return 0;
-  return Math.abs(_scrollPos) / _contentWidth; // 0..1
-}
-
-// Restore scroll from a saved ratio
-function restoreScrollRatio(ratio) {
-  if (_contentWidth <= 0) { _scrollPos = 0; return; }
-  _scrollPos = -(ratio * _contentWidth);
-  pipEl.style.transform = 'translateX(' + _scrollPos + 'px)';
-}
-
-// Set content and resume scrolling from the same visual position
-// Note: The HTML already contains duplicated items from app.js getTickerHTML()
-// for seamless scrolling — we just display it as-is.
-function setContent(html) {
-  // Save current scroll ratio before content swap
-  const ratio = saveScrollRatio();
-
-  // Remove leftover fade timer from previous update
-  if (window._pipFadeTimer) {
-    clearTimeout(window._pipFadeTimer);
-    window._pipFadeTimer = null;
+  function stopLoop() {
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
   }
 
-  // Update content
-  pipEl.style.opacity = '0';
-  window._pipFadeTimer = setTimeout(() => {
-    if (!html || !html.trim()) {
-      pipEl.innerHTML = '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
-      // Single-item content — scroll width is just its own width
-      _contentWidth = pipEl.scrollWidth;
-    } else {
-      pipEl.innerHTML = html;
-      // Content from app.js is already duplicated, so one copy = half the scrollWidth
-      _contentWidth = pipEl.scrollWidth / 2;
-    }
-    if (_contentWidth <= 0) _contentWidth = 1;
+  // Duplicate the single content copy enough times to fill at least 2x the
+  // viewport, guaranteeing a seamless loop regardless of item count.
+  function renderCopies(singleHtml) {
+    _singleHtml = singleHtml;
+    pipEl.innerHTML = singleHtml;
+    const singleW = pipEl.scrollWidth || 1;
+    const viewW = viewport.clientWidth || window.innerWidth || 400;
+    const copies = Math.max(2, Math.ceil((viewW * 2) / singleW));
+    if (copies > 1) pipEl.innerHTML = singleHtml.repeat(copies);
+    return singleW;
+  }
 
-    // Restore scroll position to the same visual ratio
-    restoreScrollRatio(ratio);
+  // Set content and resume scrolling from the same visual position
+  function setContent(html) {
+    // Save current scroll ratio before the swap so the animation continues
+    // from the same visual point (no jump on every todo change).
+    const ratio = _oneCopyWidth > 0
+      ? Math.min(0.99, Math.abs(_scrollPos) / _oneCopyWidth)
+      : 0;
 
-    // Increment generation to cancel stale raf frames
-    _contentGeneration++;
+    if (window._pipFadeTimer) { clearTimeout(window._pipFadeTimer); window._pipFadeTimer = null; }
 
-    pipEl.style.opacity = '1';
-    window._pipFadeTimer = null;
+    pipEl.style.opacity = '0';
+    window._pipFadeTimer = setTimeout(() => {
+      const hasItems = !!(html && html.trim());
+      const single = hasItems
+        ? html
+        : '<span class="ticker-item">✅ All caught up — no pending tasks!</span>';
 
-    // If scrolling was stopped (first content load), start it
-    if (!_rafId) {
-      startScrolling();
-    }
-  }, 200);
-}
+      _oneCopyWidth = renderCopies(single);
+      _scrollSpeed = calcSpeed(_oneCopyWidth);
 
-// Handle content updates from main process
-// Using null sentinel so the first call (even with empty content) always goes through
-let _lastContentHtml = null;
+      _scrollPos = -(ratio * _oneCopyWidth);
+      if (Math.abs(_scrollPos) >= _oneCopyWidth) _scrollPos = 0;
+      pipEl.style.transform = 'translateX(' + _scrollPos + 'px)';
 
-window.pipApi.onContent((html) => {
-  const normalized = (html || '').replace(/\s+/g, ' ').trim();
-  if (normalized === _lastContentHtml) return; // No real change — keep scrolling
-  _lastContentHtml = normalized;
-  setContent(html || '');
-});
+      window._pipFadeTimer = null;
+      pipEl.style.opacity = _paused ? '0.85' : '1';
+      startLoop();
+    }, 200);
+  }
 
-// The main process sends cached content on did-finish-load, so no need to requestRefresh() here.
-// The sentinel null above ensures the first content (even if empty) is always processed.
+  // Handle content updates from the main process.
+  // Null sentinel ensures the first call (even with empty content) goes through.
+  let _lastContentHtml = null;
 
-// Theme
-window.pipApi.onTheme((theme) => {
-  document.body.className = 'theme-' + theme;
-});
+  const api = window.pipApi || {
+    // Browser/dev fallback so the preview renders without the preload bridge
+    onContent: (cb) => setTimeout(() => cb(
+      '<span class="ticker-item">🔴 High priority task</span>' +
+      '<span class="ticker-item">🟠 Design review</span>' +
+      '<span class="ticker-item">🟢 Ship v1.13.3</span>'
+    ), 300),
+    onTheme: () => {},
+    closePip: () => {},
+  };
 
-// Close button click
-closeBtn.addEventListener('click', () => { window.pipApi.closePip(); });
+  api.onContent((html) => {
+    const normalized = (html || '').replace(/\s+/g, ' ').trim();
+    if (normalized === _lastContentHtml) return; // No real change — keep scrolling
+    _lastContentHtml = normalized;
+    setContent(html || '');
+  });
 
-// Right-click anywhere closes
-document.addEventListener('contextmenu', (e) => {
-  e.preventDefault();
-  window.pipApi.closePip();
-});
+  api.onTheme((theme) => {
+    document.body.className = 'theme-' + theme;
+  });
 
-// Hover pause — use JS instead of CSS animation-play-state
-document.body.addEventListener('mouseenter', () => { _paused = true; });
-document.body.addEventListener('mouseleave', () => { _paused = false; });
+  // Close button click
+  closeBtn.addEventListener('click', () => api.closePip());
 
-// Clean up on unload
-window.addEventListener('beforeunload', () => {
-  stopScrolling();
-  if (window._pipFadeTimer) clearTimeout(window._pipFadeTimer);
-});
+  // Right-click anywhere closes
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    api.closePip();
+  });
 
-// Initialize: request a refresh of content from main process
-// (the main process caches the latest HTML and sends it when requested)
+  // Hover pause + dim (dim in JS so it doesn't override the fade transition)
+  document.body.addEventListener('mouseenter', () => { _paused = true; pipEl.style.opacity = '0.85'; });
+  document.body.addEventListener('mouseleave', () => { _paused = false; pipEl.style.opacity = '1'; });
+
+  // Re-fill the train when the window is resized so the seamless wrap never
+  // shows a blank gap, preserving the current scroll ratio.
+  let _resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => {
+      if (!_singleHtml) return;
+      const ratio = Math.min(0.99, Math.abs(_scrollPos) / (_oneCopyWidth || 1));
+      _oneCopyWidth = renderCopies(_singleHtml);
+      _scrollPos = -(ratio * _oneCopyWidth);
+      if (Math.abs(_scrollPos) >= _oneCopyWidth) _scrollPos = 0;
+      pipEl.style.transform = 'translateX(' + _scrollPos + 'px)';
+    }, 150);
+  });
+
+  // Clean up on unload
+  window.addEventListener('beforeunload', () => {
+    stopLoop();
+    if (window._pipFadeTimer) clearTimeout(window._pipFadeTimer);
+  });
+})();
 </script></body>
 </html>

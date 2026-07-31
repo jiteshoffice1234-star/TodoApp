@@ -327,9 +327,8 @@ function getTickerHTML() {
     const badge = overdue ? ' ⚠️' : '';
     return `<span class="ticker-item">${icon} ${title}${badge}</span>`;
   });
-  // Duplicate for seamless scrolling
-  const doubled = items.concat(items);
-  return doubled.join('');
+  // Single copy — consumers (main ticker + PiP) duplicate in the DOM to fill the viewport
+  return items.join('');
 }
 
 // Only push to PiP when content actually changes (avoids resetting the scroll animation)
@@ -403,18 +402,24 @@ function renderTicker() {
     : 0;
 
   if (html && html.trim()) {
+    // Duplicate the single copy enough times to fill at least 2x the viewport
+    // for a seamless loop regardless of item count.
     ticker.innerHTML = html;
-    _tickerContentWidth = ticker.scrollWidth / 2 || 1;
+    const singleW = ticker.scrollWidth || 1;
+    const viewW = (ticker.parentElement && ticker.parentElement.clientWidth) || 400;
+    const copies = Math.max(2, Math.ceil((viewW * 2) / singleW));
+    if (copies > 1) ticker.innerHTML = html.repeat(copies);
+
+    _tickerContentWidth = singleW;
     _tickerPos = -(ratio * _tickerContentWidth);
-    if (_tickerPos > 0) _tickerPos = 0;
     if (Math.abs(_tickerPos) >= _tickerContentWidth) _tickerPos = 0;
     ticker.style.transform = 'translateX(' + _tickerPos + 'px)';
 
-    // Calculate speed for ~25s full cycle at 60fps (matching original CSS)
-    // Use shared _tickerSpeed so RAF loop reads latest value on each content update
+    // Speed for ~25s full cycle at 60fps
     _tickerSpeed = Math.max(0.3, Math.min(3.0, _tickerContentWidth / (25 * 60)));
+    // Persistent loop — always reschedules itself, never freezes on content updates.
     _tickerRafId = _tickerRafId || requestAnimationFrame(function tickerLoop() {
-      if (!_tickerPaused) {
+      if (!_tickerPaused && _tickerContentWidth > 0) {
         _tickerPos -= _tickerSpeed;
         if (Math.abs(_tickerPos) >= _tickerContentWidth) {
           _tickerPos = 0;
@@ -434,6 +439,9 @@ function renderTicker() {
       _tickerRafId = null;
     }
   }
+
+  // Push to PiP immediately when content changes (not just on the 5s poll)
+  if (pipActive) pushPipContentIfChanged();
 
   // Keep PiP interval running if PiP is active
   if (pipActive && !pipInterval) {
