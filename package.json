@@ -1,6 +1,6 @@
 {
   "name": "todo-app",
-  "version": "1.13.1",
+  "version": "1.13.2",
   "description": "A full-featured Todo app",
   "main": "main.js",
   "author": "TodoApp",
@@ -39,6 +39,7 @@
       "preload.js",
       "pip_preload.js",
       "src/**/*",
+      "resources/**/*",
       "node_modules/**/*"
     ]
   },
