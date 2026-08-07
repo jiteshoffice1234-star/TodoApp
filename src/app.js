@@ -88,6 +88,20 @@ async function init() {
   // Auto-restore PiP if it was active before
   restorePipState();
 
+  // Floating Pomodoro
+  window.api.onPomodoroClosedByWindow(() => {
+    pomodoroActive = false;
+    const btn = document.getElementById('pomoFloatBtn');
+    if (btn) { btn.textContent = '🍅'; btn.title = 'Floating Pomodoro'; }
+  });
+  window.api.onPomodoroSync((state) => {
+    // Sync pomodoro state from main process
+    if (typeof window._syncPomodoroState === 'function') {
+      window._syncPomodoroState(state);
+    }
+  });
+  restorePomodoroState();
+
   // Ticker hover pause — pause JS-driven scroll on hover, resume on leave
   const tickerWindow = document.querySelector('.ticker-window');
   if (tickerWindow) {
@@ -313,6 +327,10 @@ let pipInterval = null;
 let _lastPipHtml = null; // Cache: null = never pushed, '' = empty content pushed, string = content pushed
 let _pipStartupDeferred = false;
 
+// --- Floating Pomodoro ---
+let pomodoroActive = false;
+let _pomodoroStartupDeferred = false;
+
 // Ticker state (JS-driven scroll, same approach as PiP)
 let _tickerRafId = null;
 let _tickerPos = 0;
@@ -396,6 +414,50 @@ async function restorePipState() {
     if (ok) showToast('PiP reconnected', '📺');
   }
 }
+
+// --- Floating Pomodoro ---
+async function pomodoroToggle() {
+  if (pomodoroActive) {
+    await window.api.closePomodoro();
+    pomodoroActive = false;
+    const btn = document.getElementById('pomoFloatBtn');
+    if (btn) { btn.textContent = '🍅'; btn.title = 'Floating Pomodoro'; }
+    return;
+  }
+  const ok = await window.api.openPomodoro();
+  if (ok) {
+    pomodoroActive = true;
+    const btn = document.getElementById('pomoFloatBtn');
+    if (btn) { btn.textContent = '🔴'; btn.title = 'Close Floating Pomodoro'; }
+  } else {
+    showToast('Failed to open Pomodoro window', '⚠️');
+  }
+}
+
+async function restorePomodoroState() {
+  if (_pomodoroStartupDeferred) return;
+  _pomodoroStartupDeferred = true;
+  await new Promise(r => setTimeout(r, 400));
+  const state = await window.api.getPomodoroState();
+  if (state && state.active) {
+    pomodoroActive = true;
+    const btn = document.getElementById('pomoFloatBtn');
+    if (btn) { btn.textContent = '🔴'; btn.title = 'Close Floating Pomodoro'; }
+  }
+}
+
+// Sync pomodoro state from main process
+window._syncPomodoroState = function(state) {
+  // Update local pomodoro state if needed
+  if (state && state.active !== undefined) {
+    pomodoroActive = state.active;
+    const btn = document.getElementById('pomoFloatBtn');
+    if (btn) {
+      btn.textContent = pomodoroActive ? '🔴' : '🍅';
+      btn.title = pomodoroActive ? 'Close Floating Pomodoro' : 'Floating Pomodoro';
+    }
+  }
+};
 
 function renderTicker() {
   const html = getTickerHTML();
@@ -1017,6 +1079,7 @@ function pomoToggle() {
   if (pomoRunning) { pomoPause(); } else { pomoStart(); }
 }
 function pomoStart() {
+  if (pomoInterval) clearInterval(pomoInterval); // Prevent timer stacking
   pomoRunning = true;
   pomoInterval = setInterval(() => {
     if (pomoSeconds > 0) { pomoSeconds--; updatePomoDisplay(); }
@@ -1644,6 +1707,7 @@ function bindEvents() {
   document.getElementById('saveBtn').addEventListener('click', saveTodo);
   document.getElementById('themeToggle').addEventListener('click', toggleTheme);
   document.getElementById('pipBtn').addEventListener('click', pipToggle);
+  document.getElementById('pomoFloatBtn').addEventListener('click', pomodoroToggle);
   document.getElementById('clearCompleted').addEventListener('click', clearCompleted);
   document.getElementById('manageTags').addEventListener('click', openTagModal);
   document.getElementById('settingsBtn').addEventListener('click', openSettings);

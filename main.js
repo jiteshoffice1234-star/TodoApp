@@ -149,6 +149,89 @@ function getNextRecurringDate(recurring, baseDate) {
 let mainWindow;
 let pipWindow = null;
 let cachedPipHtml = '';
+let pomodoroWindow = null;
+
+// Pomodoro state (managed in main process so it survives window focus changes)
+let pomoState = {
+  remainingSeconds: 25 * 60,
+  totalSeconds: 25 * 60,
+  isRunning: false,
+  isBreak: false,
+  isStopped: true,
+  sessionCount: 0,
+  currentTodoId: null,
+  todoTitle: null,
+};
+let pomoInterval = null;
+
+function startPomoTimer() {
+  if (pomoInterval) clearInterval(pomoInterval);
+  pomoState.isRunning = true;
+  pomoInterval = setInterval(() => {
+    if (pomoState.remainingSeconds > 0) {
+      pomoState.remainingSeconds--;
+      sendPomodoroState();
+    } else {
+      pomoComplete();
+    }
+  }, 1000);
+}
+
+function pomoComplete() {
+  if (pomoInterval) clearInterval(pomoInterval);
+  pomoState.isRunning = false;
+
+  if (!pomoState.isBreak) {
+    pomoState.sessionCount++;
+    // Save session to data
+    if (pomoState.currentTodoId) {
+      const data = loadData();
+      if (!data.focusSessions) data.focusSessions = [];
+      data.focusSessions.push({
+        id: Date.now(),
+        todoId: pomoState.currentTodoId,
+        startedAt: Date.now() - pomoState.totalSeconds * 1000,
+        durationMinutes: Math.round(pomoState.totalSeconds / 60),
+        completed: true,
+      });
+      saveData(data);
+    }
+    // Switch to break
+    if (pomoState.sessionCount % 4 === 0) {
+      pomoState.isBreak = true;
+      pomoState.remainingSeconds = 15 * 60;
+      pomoState.totalSeconds = 15 * 60;
+    } else {
+      pomoState.isBreak = true;
+      pomoState.remainingSeconds = 5 * 60;
+      pomoState.totalSeconds = 5 * 60;
+    }
+  } else {
+    // Switch back to work
+    pomoState.isBreak = false;
+    pomoState.remainingSeconds = 25 * 60;
+    pomoState.totalSeconds = 25 * 60;
+  }
+
+  sendPomodoroState();
+  sendPomodoroNotification();
+}
+
+function sendPomodoroNotification() {
+  const title = 'Pomodoro';
+  const body = pomoState.isBreak ? 'Break time! 🍅' : 'Focus time! 🎯';
+  try { new Notification({ title, body }).show(); } catch(e) {}
+}
+
+function sendPomodoroState() {
+  if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
+    try { pomodoroWindow.webContents.send('pomodoro:set-state', pomoState); } catch(e) {}
+  }
+  // Also sync to main window
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.send('pomodoro:sync', pomoState); } catch(e) {}
+  }
+}
 
 function openPipWindow() {
   if (pipWindow && !pipWindow.isDestroyed()) { pipWindow.focus(); return true; }
@@ -240,19 +323,21 @@ function createWindow() {
     processRecurring(data);
     saveData(data);
     // Notifications are handled by the renderer process (app.js) to avoid duplicates
-    // Defer PiP auto-restore so the main window paints first (faster morning startup)
+    // Defer PiP and Pomodoro auto-restore so the main window paints first
     setTimeout(() => {
-      if (mainWindow.isDestroyed()) return; // Don't create PiP if main window already closed
+      if (mainWindow.isDestroyed()) return;
       if (getSetting('pipActive') && (!pipWindow || pipWindow.isDestroyed())) {
         openPipWindow();
+      }
+      if (getSetting('pomodoroActive') && (!pomodoroWindow || pomodoroWindow.isDestroyed())) {
+        openPomodoroWindow();
       }
     }, 500);
   });
 
   mainWindow.on('close', (e) => {
-    if (pipWindow && !pipWindow.isDestroyed()) {
+    if (pipWindow && !pipWindow.isDestroyed() || pomodoroWindow && !pomodoroWindow.isDestroyed()) {
       e.preventDefault();
-      // Keep PiP alive but hide the main window to system tray
       mainWindow.hide();
     }
   });
@@ -260,6 +345,9 @@ function createWindow() {
   mainWindow.on('show', () => {
     if (pipWindow && !pipWindow.isDestroyed()) {
       mainWindow.webContents.send('pip:sync');
+    }
+    if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
+      mainWindow.webContents.send('pomodoro:sync', pomoState);
     }
   });
 }
@@ -277,10 +365,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // If PiP is still open, don't quit — wait for it to close
+  // If PiP or Pomodoro is still open, don't quit
   if (pipWindow && !pipWindow.isDestroyed()) return;
+  if (pomodoroWindow && !pomodoroWindow.isDestroyed()) return;
   if (process.platform !== 'darwin') {
-    // Final safety net: force quit if main window hidden + PiP closed
     app.quit();
   }
 });
@@ -344,6 +432,116 @@ ipcMain.handle('pip:drag-move', (_, x, y) => {
   if (pipWindow && !pipWindow.isDestroyed()) pipWindow.setPosition(Math.round(x), Math.round(y));
   return true;
 });
+
+// --- Pomodoro floating window ---
+function openPomodoroWindow() {
+  if (pomodoroWindow && !pomodoroWindow.isDestroyed()) { pomodoroWindow.focus(); return true; }
+  pomodoroWindow = new BrowserWindow({
+    width: 280, height: 220, minWidth: 200, minHeight: 160,
+    resizable: true, frame: false, alwaysOnTop: true,
+    skipTaskbar: true, backgroundColor: '#1a1a2e',
+    webPreferences: {
+      preload: path.join(__dirname, 'pomodoro_preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  pomodoroWindow.loadFile(path.join(__dirname, 'src', 'pomodoro.html'));
+  pomodoroWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  pomodoroWindow.webContents.once('did-finish-load', () => {
+    if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
+      try {
+        pomodoroWindow.webContents.send('pomodoro:set-state', pomoState);
+        pomodoroWindow.webContents.send('pomodoro:set-theme', currentTheme);
+      } catch(e) {}
+    }
+  });
+
+  pomodoroWindow.on('closed', () => {
+    pomodoroWindow = null;
+    saveSetting('pomodoroActive', false);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.send('pomodoro:closed-by-window'); } catch(e) {}
+    }
+  });
+  return true;
+}
+
+let currentTheme = 'light';
+
+ipcMain.handle('pomodoro:open', () => {
+  const ok = openPomodoroWindow();
+  if (ok) saveSetting('pomodoroActive', true);
+  return ok;
+});
+
+ipcMain.handle('pomodoro:close', () => {
+  if (pomodoroWindow && !pomodoroWindow.isDestroyed()) { pomodoroWindow.close(); pomodoroWindow = null; }
+  saveSetting('pomodoroActive', false);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.send('pomodoro:closed-by-window'); } catch(e) {}
+  }
+  return true;
+});
+
+ipcMain.handle('pomodoro:command', (_, command) => {
+  switch (command) {
+    case 'toggle':
+      if (pomoState.isRunning) {
+        if (pomoInterval) clearInterval(pomoInterval);
+        pomoState.isRunning = false;
+      } else {
+        pomoState.isStopped = false;
+        startPomoTimer();
+      }
+      break;
+    case 'reset':
+      if (pomoInterval) clearInterval(pomoInterval);
+      pomoState.isRunning = false;
+      pomoState.isBreak = false;
+      pomoState.remainingSeconds = 25 * 60;
+      pomoState.totalSeconds = 25 * 60;
+      break;
+    case 'stop':
+      if (pomoInterval) clearInterval(pomoInterval);
+      pomoState.isRunning = false;
+      pomoState.isStopped = true;
+      pomoState.isBreak = false;
+      pomoState.remainingSeconds = 25 * 60;
+      pomoState.totalSeconds = 25 * 60;
+      break;
+    case 'skip':
+      if (pomoInterval) clearInterval(pomoInterval);
+      pomoState.isRunning = false;
+      pomoComplete();
+      break;
+  }
+  sendPomodoroState();
+  return true;
+});
+
+ipcMain.handle('pomodoro:state', () => {
+  return { active: getSetting('pomodoroActive'), ...pomoState };
+});
+
+ipcMain.handle('pomodoro:get-settings', () => {
+  return getSetting('pomodoroSettings') || {};
+});
+
+ipcMain.handle('pomodoro:save-settings', (_, settings) => {
+  saveSetting('pomodoroSettings', settings);
+  return true;
+});
+
+ipcMain.handle('pomodoro:set-todo', (_, todoId, title) => {
+  pomoState.currentTodoId = todoId;
+  pomoState.todoTitle = title;
+  sendPomodoroState();
+  return true;
+});
+
+ipcMain.handle('pomodoro:sync-state', () => pomoState);
 
 
 // --- Update IPC handlers ---

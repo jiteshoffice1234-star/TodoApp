@@ -38,6 +38,7 @@
       "main.js",
       "preload.js",
       "pip_preload.js",
+      "pomodoro_preload.js",
       "src/**/*",
       "resources/**/*",
       "node_modules/**/*"

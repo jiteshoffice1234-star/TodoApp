@@ -30,6 +30,13 @@ contextBridge.exposeInMainWorld('api', {
   getPipState: () => ipcRenderer.invoke('pip:state'),
   onPipSync: (callback) => ipcRenderer.on('pip:sync', callback),
   onPipClosedByPip: (callback) => ipcRenderer.on('pip:closed-by-pip', callback),
+  // Pomodoro floating window
+  openPomodoro: () => ipcRenderer.invoke('pomodoro:open'),
+  closePomodoro: () => ipcRenderer.invoke('pomodoro:close'),
+  getPomodoroState: () => ipcRenderer.invoke('pomodoro:state'),
+  onPomodoroSync: (callback) => ipcRenderer.on('pomodoro:sync', (_, state) => callback(state)),
+  onPomodoroClosedByWindow: (callback) => ipcRenderer.on('pomodoro:closed-by-window', callback),
+  setPomodoroTodo: (todoId, title) => ipcRenderer.invoke('pomodoro:set-todo', todoId, title),
   // Update API
   ...updateHandlers,
 });

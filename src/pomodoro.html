@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  overflow: hidden; font-family: 'Segoe UI', sans-serif; height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-app-region: drag; user-select: none; cursor: default;
+  background: #1a1a2e; color: #fff;
+  transition: background 0.3s ease;
+}
+body.theme-light { background: #1a1a2e; }
+body.theme-dark { background: #0d1117; }
+body.theme-neobrutalism { background: #1a1a00; }
+body.theme-glass { background: rgba(10,10,10,0.85); backdrop-filter: blur(20px); }
+body.theme-minimal { background: #111; }
+body.theme-clay { background: #3D3028; }
+
+#pomodoroContainer {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 12px 20px; -webkit-app-region: drag;
+}
+
+/* Timer display */
+#timerDisplay {
+  font-size: 48px; font-weight: 700; letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 20px rgba(0,255,204,0.3);
+}
+body.theme-light #timerDisplay { color: #00ffcc; }
+body.theme-dark #timerDisplay { color: #00ffcc; }
+body.theme-neobrutalism #timerDisplay { color: #FFD700; }
+body.theme-glass #timerDisplay { color: #64B4FF; }
+body.theme-minimal #timerDisplay { color: #ffffff; }
+body.theme-clay #timerDisplay { color: #D4A574; }
+
+/* Status label */
+#statusLabel {
+  font-size: 12px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 1px; opacity: 0.7;
+}
+body.theme-light #statusLabel { color: #00ffcc; }
+body.theme-dark #statusLabel { color: #00ffcc; }
+body.theme-neobrutalism #statusLabel { color: #FFD700; }
+body.theme-glass #statusLabel { color: #64B4FF; }
+body.theme-minimal #statusLabel { color: #ffffff; }
+body.theme-clay #statusLabel { color: #D4A574; }
+
+/* Session dots */
+#sessionDots {
+  display: flex; gap: 6px; align-items: center;
+}
+.session-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,0.2); transition: all 0.3s ease;
+}
+.session-dot.active {
+  background: #00ffcc; box-shadow: 0 0 8px rgba(0,255,204,0.5);
+  transform: scale(1.2);
+}
+body.theme-neobrutalism .session-dot.active { background: #FFD700; box-shadow: 0 0 8px rgba(255,215,0,0.5); }
+body.theme-glass .session-dot.active { background: #64B4FF; box-shadow: 0 0 8px rgba(100,180,255,0.5); }
+body.theme-minimal .session-dot.active { background: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.3); }
+body.theme-clay .session-dot.active { background: #D4A574; box-shadow: 0 0 8px rgba(212,165,116,0.5); }
+
+/* Controls */
+#controls {
+  display: flex; gap: 8px; align-items: center;
+  -webkit-app-region: no-drag;
+}
+.ctrl-btn {
+  width: 32px; height: 32px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.1); color: #fff; font-size: 14px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease; -webkit-app-region: no-drag;
+}
+.ctrl-btn:hover { background: rgba(255,255,255,0.2); transform: scale(1.1); }
+.ctrl-btn.primary {
+  width: 40px; height: 40px; font-size: 16px;
+  background: rgba(0,255,204,0.2); color: #00ffcc;
+}
+.ctrl-btn.primary:hover { background: rgba(0,255,204,0.3); }
+body.theme-neobrutalism .ctrl-btn.primary { background: rgba(255,215,0,0.2); color: #FFD700; }
+body.theme-glass .ctrl-btn.primary { background: rgba(100,180,255,0.2); color: #64B4FF; }
+body.theme-minimal .ctrl-btn.primary { background: rgba(255,255,255,0.15); color: #ffffff; }
+body.theme-clay .ctrl-btn.primary { background: rgba(212,165,116,0.2); color: #D4A574; }
+
+/* Progress ring */
+#progressRing {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; opacity: 0.15;
+}
+
+/* Close button */
+#closeBtn {
+  position: fixed; top: 4px; right: 6px; width: 20px; height: 20px;
+  border: none; background: none; color: #666; font-size: 14px;
+  cursor: pointer; display: none; align-items: center; justify-content: center;
+  border-radius: 4px; z-index: 10; line-height: 1;
+  -webkit-app-region: no-drag;
+}
+#closeBtn:hover { background: rgba(255,255,255,0.1); color: #ff4444; }
+body:hover #closeBtn { display: flex; }
+
+/* Settings panel */
+#settingsPanel {
+  position: fixed; bottom: 40px; right: 10px; width: 200px;
+  background: rgba(30,30,40,0.95); backdrop-filter: blur(10px);
+  border-radius: 12px; padding: 12px; display: none;
+  -webkit-app-region: no-drag; z-index: 100;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+#settingsPanel.visible { display: block; }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; font-size: 12px; color: rgba(255,255,255,0.7);
+}
+.setting-row label { flex: 1; }
+.setting-row input[type="range"] { width: 80px; accent-color: #00ffcc; }
+.setting-row input[type="color"] { width: 24px; height: 24px; border: none; border-radius: 4px; cursor: pointer; }
+.setting-row select {
+  width: 80px; padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.1); color: #fff; font-size: 11px;
+}
+
+/* Settings gear button */
+#settingsBtn {
+  position: fixed; top: 4px; right: 28px; width: 20px; height: 20px;
+  border: none; background: none; color: #666; font-size: 12px;
+  cursor: pointer; display: none; align-items: center; justify-content: center;
+  border-radius: 4px; z-index: 10;
+  -webkit-app-region: no-drag;
+}
+#settingsBtn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+body:hover #settingsBtn { display: flex; }
+</style>
+</head>
+<body class="theme-light">
+  <svg id="progressRing" width="260" height="260">
+    <circle cx="130" cy="130" r="120" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="4"/>
+    <circle id="ringProgress" cx="130" cy="130" r="120" fill="none" stroke="#00ffcc" stroke-width="4"
+      stroke-dasharray="754" stroke-dashoffset="754" stroke-linecap="round"
+      transform="rotate(-90 130 130)" style="transition: stroke-dashoffset 1s linear;"/>
+  </svg>
+
+  <div id="pomodoroContainer">
+    <div id="timerDisplay">25:00</div>
+    <div id="statusLabel">Focus Time</div>
+    <div id="sessionDots">
+      <div class="session-dot"></div>
+      <div class="session-dot"></div>
+      <div class="session-dot"></div>
+      <div class="session-dot"></div>
+    </div>
+    <div id="controls">
+      <button class="ctrl-btn" id="resetBtn" title="Reset">↺</button>
+      <button class="ctrl-btn primary" id="playBtn" title="Start/Pause">▶</button>
+      <button class="ctrl-btn" id="stopBtn" title="Stop">⏹</button>
+      <button class="ctrl-btn" id="skipBtn" title="Skip">⏭</button>
+    </div>
+  </div>
+
+  <button id="settingsBtn" title="Settings">⚙</button>
+  <button id="closeBtn" title="Close">✕</button>
+
+  <div id="settingsPanel">
+    <div class="setting-row">
+      <label>Font size</label>
+      <input type="range" id="fontSizeSlider" min="24" max="72" value="48">
+    </div>
+    <div class="setting-row">
+      <label>Opacity</label>
+      <input type="range" id="opacitySlider" min="30" max="100" value="100">
+    </div>
+    <div class="setting-row">
+      <label>Accent color</label>
+      <input type="color" id="accentColorPicker" value="#00ffcc">
+    </div>
+    <div class="setting-row">
+      <label>Position</label>
+      <select id="positionSelect">
+        <option value="top-right">Top Right</option>
+        <option value="top-left">Top Left</option>
+        <option value="bottom-right">Bottom Right</option>
+        <option value="bottom-left">Bottom Left</option>
+        <option value="center">Center</option>
+      </select>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const timerDisplay = document.getElementById('timerDisplay');
+  const statusLabel = document.getElementById('statusLabel');
+  const sessionDots = document.querySelectorAll('.session-dot');
+  const playBtn = document.getElementById('playBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const skipBtn = document.getElementById('skipBtn');
+  const closeBtn = document.getElementById('closeBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const ringProgress = document.getElementById('ringProgress');
+  const fontSizeSlider = document.getElementById('fontSizeSlider');
+  const opacitySlider = document.getElementById('opacitySlider');
+  const accentColorPicker = document.getElementById('accentColorPicker');
+  const positionSelect = document.getElementById('positionSelect');
+
+  const circumference = 2 * Math.PI * 120;
+
+  // API bridge
+  const api = window.pomodoroApi || {
+    onState: (cb) => {},
+    onTheme: (cb) => {},
+    closePomodoro: () => {},
+    sendCommand: (cmd) => {},
+    getSettings: () => Promise.resolve({}),
+    saveSettings: (s) => Promise.resolve(),
+  };
+
+  // Update display from state
+  function updateDisplay(state) {
+    if (!state) return;
+
+    const min = Math.floor(state.remainingSeconds / 60);
+    const sec = state.remainingSeconds % 60;
+    timerDisplay.textContent = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+
+    statusLabel.textContent = state.isBreak ? 'Break Time' : 'Focus Time';
+
+    // Update play/pause button
+    playBtn.textContent = state.isRunning ? '⏸' : '▶';
+
+    // Update session dots
+    const sessionCount = state.sessionCount % 4;
+    sessionDots.forEach((dot, i) => {
+      dot.classList.toggle('active', i < sessionCount);
+    });
+
+    // Update progress ring
+    const progress = state.totalSeconds > 0
+      ? 1 - (state.remainingSeconds / state.totalSeconds)
+      : 0;
+    const offset = circumference * (1 - progress);
+    ringProgress.style.strokeDashoffset = offset;
+
+    // Update ring color based on state
+    const accent = accentColorPicker.value;
+    ringProgress.style.stroke = state.isBreak ? '#4caf50' : accent;
+  }
+
+  // Button handlers
+  playBtn.addEventListener('click', () => {
+    api.sendCommand('toggle');
+  });
+
+  resetBtn.addEventListener('click', () => {
+    api.sendCommand('reset');
+  });
+
+  stopBtn.addEventListener('click', () => {
+    api.sendCommand('stop');
+  });
+
+  skipBtn.addEventListener('click', () => {
+    api.sendCommand('skip');
+  });
+
+  closeBtn.addEventListener('click', () => {
+    api.closePomodoro();
+  });
+
+  // Right-click closes
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    api.closePomodoro();
+  });
+
+  // Settings toggle
+  settingsBtn.addEventListener('click', () => {
+    settingsPanel.classList.toggle('visible');
+  });
+
+  // Settings handlers
+  fontSizeSlider.addEventListener('input', () => {
+    const size = fontSizeSlider.value;
+    timerDisplay.style.fontSize = size + 'px';
+    api.saveSettings({ fontSize: size });
+  });
+
+  opacitySlider.addEventListener('input', () => {
+    const opacity = opacitySlider.value / 100;
+    document.body.style.opacity = opacity;
+    api.saveSettings({ opacity: opacitySlider.value });
+  });
+
+  accentColorPicker.addEventListener('input', () => {
+    const color = accentColorPicker.value;
+    timerDisplay.style.color = color;
+    statusLabel.style.color = color;
+    ringProgress.style.stroke = color;
+    document.documentElement.style.setProperty('--accent', color);
+    api.saveSettings({ accentColor: color });
+  });
+
+  positionSelect.addEventListener('change', () => {
+    api.saveSettings({ position: positionSelect.value });
+  });
+
+  // Theme
+  api.onTheme((theme) => {
+    document.body.className = 'theme-' + theme;
+  });
+
+  // State updates
+  api.onState((state) => {
+    updateDisplay(state);
+  });
+
+  // Load saved settings
+  api.getSettings().then((settings) => {
+    if (settings.fontSize) {
+      fontSizeSlider.value = settings.fontSize;
+      timerDisplay.style.fontSize = settings.fontSize + 'px';
+    }
+    if (settings.opacity) {
+      opacitySlider.value = settings.opacity;
+      document.body.style.opacity = settings.opacity / 100;
+    }
+    if (settings.accentColor) {
+      accentColorPicker.value = settings.accentColor;
+      timerDisplay.style.color = settings.accentColor;
+      statusLabel.style.color = settings.accentColor;
+      ringProgress.style.stroke = settings.accentColor;
+    }
+    if (settings.position) {
+      positionSelect.value = settings.position;
+    }
+  });
+
+  // Clean up on unload
+  window.addEventListener('beforeunload', () => {
+    // Save current state
+  });
+})();
+</script>
+</body>
+</html>
