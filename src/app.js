@@ -183,8 +183,8 @@ function showToast(message, icon = '✓', duration = 3000, undoCallback = null) 
 // --- Smart Lists ---
 function getDefaultSmartLists() {
   return [
-    { id: 'due-today', name: 'Due Today', icon: '📅', filter: 'all', search: '', tagIds: [], builtin: true },
-    { id: 'high-priority', name: 'High Priority', icon: '🔴', filter: 'all', search: '', tagIds: [], builtin: true },
+    { id: 'due-today', name: 'Due Today', icon: '📅', filter: 'due-today', search: '', tagIds: [], builtin: true },
+    { id: 'high-priority', name: 'High Priority', icon: '🔴', filter: 'high-priority', search: '', tagIds: [], builtin: true },
     { id: 'pending', name: 'Pending', icon: '📋', filter: 'pending', search: '', tagIds: [], builtin: true },
   ];
 }
@@ -287,6 +287,13 @@ function getFilteredTodos() {
   }
   if (currentFilter === 'pending') list = list.filter(t => !t.completed);
   if (currentFilter === 'done') list = list.filter(t => t.completed);
+  if (currentFilter === 'due-today') {
+    const today = new Date().toISOString().split('T')[0];
+    list = list.filter(t => !t.completed && t.dueDate === today);
+  }
+  if (currentFilter === 'high-priority') {
+    list = list.filter(t => !t.completed && t.priority === 'high');
+  }
   list.sort((a, b) => {
     if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
@@ -884,7 +891,7 @@ function getTodayMood() {
 function renderMoodWidget() {
   const emoji = document.getElementById('moodEmoji');
   const todayMood = getTodayMood();
-  const emojis = ['😊','😢','😕','😐','😊','😁'];
+  const emojis = ['','😢','😕','😐','😊','😁'];
   emoji.textContent = todayMood ? emojis[todayMood] : '😊';
 }
 function toggleMoodPicker() {
