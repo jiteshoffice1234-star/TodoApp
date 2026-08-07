@@ -74,6 +74,8 @@ class PomodoroProvider extends ChangeNotifier {
   }
 
   void _startTimer() {
+    // Cancel any existing timer to prevent stacking
+    _timer?.cancel();
     _isRunning = true;
     notifyListeners();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {

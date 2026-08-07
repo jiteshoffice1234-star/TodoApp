@@ -92,7 +92,7 @@ async function init() {
   window.api.onPomodoroClosedByWindow(() => {
     pomodoroActive = false;
     const btn = document.getElementById('pomoFloatBtn');
-    if (btn) { btn.textContent = '🍅'; btn.title = 'Floating Pomodoro'; }
+    if (btn) { btn.textContent = '⏱️'; btn.title = 'Floating Pomodoro'; }
   });
   window.api.onPomodoroSync((state) => {
     // Sync pomodoro state from main process
@@ -421,7 +421,7 @@ async function pomodoroToggle() {
     await window.api.closePomodoro();
     pomodoroActive = false;
     const btn = document.getElementById('pomoFloatBtn');
-    if (btn) { btn.textContent = '🍅'; btn.title = 'Floating Pomodoro'; }
+    if (btn) { btn.textContent = '⏱️'; btn.title = 'Floating Pomodoro'; }
     return;
   }
   const ok = await window.api.openPomodoro();
@@ -453,7 +453,7 @@ window._syncPomodoroState = function(state) {
     pomodoroActive = state.active;
     const btn = document.getElementById('pomoFloatBtn');
     if (btn) {
-      btn.textContent = pomodoroActive ? '🔴' : '🍅';
+      btn.textContent = pomodoroActive ? '🔴' : '⏱️';
       btn.title = pomodoroActive ? 'Close Floating Pomodoro' : 'Floating Pomodoro';
     }
   }

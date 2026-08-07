@@ -180,6 +180,8 @@ function startPomoTimer() {
 function pomoComplete() {
   if (pomoInterval) clearInterval(pomoInterval);
   pomoState.isRunning = false;
+  pomoState.isStopped = true; // Mark as stopped so picker shows again
+  saveSetting('pomodoroSavedDuration', null);
 
   if (!pomoState.isBreak) {
     pomoState.sessionCount++;
@@ -196,21 +198,30 @@ function pomoComplete() {
       });
       saveData(data);
     }
-    // Switch to break
-    if (pomoState.sessionCount % 4 === 0) {
-      pomoState.isBreak = true;
-      pomoState.remainingSeconds = 15 * 60;
-      pomoState.totalSeconds = 15 * 60;
+    // If skip breaks is enabled, go directly to next focus session
+    if (pomoState.skipBreaks) {
+      const mins = Math.round(pomoState.totalSeconds / 60);
+      pomoState.isBreak = false;
+      pomoState.remainingSeconds = mins * 60;
+      pomoState.totalSeconds = mins * 60;
     } else {
-      pomoState.isBreak = true;
-      pomoState.remainingSeconds = 5 * 60;
-      pomoState.totalSeconds = 5 * 60;
+      // Switch to break
+      if (pomoState.sessionCount % 4 === 0) {
+        pomoState.isBreak = true;
+        pomoState.remainingSeconds = 15 * 60;
+        pomoState.totalSeconds = 15 * 60;
+      } else {
+        pomoState.isBreak = true;
+        pomoState.remainingSeconds = 5 * 60;
+        pomoState.totalSeconds = 5 * 60;
+      }
     }
   } else {
-    // Switch back to work
+    // Switch back to work (same duration as before)
+    const mins = Math.round(pomoState.totalSeconds / 60);
     pomoState.isBreak = false;
-    pomoState.remainingSeconds = 25 * 60;
-    pomoState.totalSeconds = 25 * 60;
+    pomoState.remainingSeconds = mins * 60;
+    pomoState.totalSeconds = mins * 60;
   }
 
   sendPomodoroState();
@@ -437,9 +448,9 @@ ipcMain.handle('pip:drag-move', (_, x, y) => {
 function openPomodoroWindow() {
   if (pomodoroWindow && !pomodoroWindow.isDestroyed()) { pomodoroWindow.focus(); return true; }
   pomodoroWindow = new BrowserWindow({
-    width: 280, height: 220, minWidth: 200, minHeight: 160,
-    resizable: true, frame: false, alwaysOnTop: true,
-    skipTaskbar: true, backgroundColor: '#1a1a2e',
+    width: 320, height: 320, minWidth: 280, minHeight: 280,
+    resizable: false, frame: false, alwaysOnTop: true,
+    skipTaskbar: true, backgroundColor: '#00000000', transparent: true,
     webPreferences: {
       preload: path.join(__dirname, 'pomodoro_preload.js'),
       contextIsolation: true,
@@ -486,6 +497,23 @@ ipcMain.handle('pomodoro:close', () => {
 });
 
 ipcMain.handle('pomodoro:command', (_, command) => {
+  // Handle 'start:X' or 'start:X:Y' commands for custom durations with skip breaks flag
+  if (command.startsWith('start:')) {
+    const parts = command.split(':');
+    const mins = parseInt(parts[1]) || 25;
+    const skipBreaks = parts[2] === '1';
+    if (pomoInterval) clearInterval(pomoInterval);
+    pomoState.isBreak = false;
+    pomoState.isStopped = false;
+    pomoState.remainingSeconds = mins * 60;
+    pomoState.totalSeconds = mins * 60;
+    pomoState.skipBreaks = skipBreaks;
+    saveSetting('pomodoroSavedDuration', mins);
+    startPomoTimer();
+    sendPomodoroState();
+    return true;
+  }
+
   switch (command) {
     case 'toggle':
       if (pomoState.isRunning) {
@@ -500,8 +528,7 @@ ipcMain.handle('pomodoro:command', (_, command) => {
       if (pomoInterval) clearInterval(pomoInterval);
       pomoState.isRunning = false;
       pomoState.isBreak = false;
-      pomoState.remainingSeconds = 25 * 60;
-      pomoState.totalSeconds = 25 * 60;
+      pomoState.remainingSeconds = pomoState.totalSeconds;
       break;
     case 'stop':
       if (pomoInterval) clearInterval(pomoInterval);
@@ -510,6 +537,7 @@ ipcMain.handle('pomodoro:command', (_, command) => {
       pomoState.isBreak = false;
       pomoState.remainingSeconds = 25 * 60;
       pomoState.totalSeconds = 25 * 60;
+      saveSetting('pomodoroSavedDuration', null);
       break;
     case 'skip':
       if (pomoInterval) clearInterval(pomoInterval);
@@ -526,11 +554,21 @@ ipcMain.handle('pomodoro:state', () => {
 });
 
 ipcMain.handle('pomodoro:get-settings', () => {
-  return getSetting('pomodoroSettings') || {};
+  const settings = getSetting('pomodoroSettings') || {};
+  settings.savedDuration = getSetting('pomodoroSavedDuration');
+  settings.isStopped = pomoState.isStopped;
+  return settings;
 });
 
 ipcMain.handle('pomodoro:save-settings', (_, settings) => {
   saveSetting('pomodoroSettings', settings);
+  return true;
+});
+
+ipcMain.handle('pomodoro:resize', (_, width, height) => {
+  if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
+    pomodoroWindow.setSize(width, height);
+  }
   return true;
 });
 

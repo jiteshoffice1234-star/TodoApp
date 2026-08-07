@@ -19,4 +19,7 @@ contextBridge.exposeInMainWorld('pomodoroApi', {
   saveSettings: (settings) => {
     ipcRenderer.invoke('pomodoro:save-settings', settings);
   },
+  resizeWindow: (width, height) => {
+    return ipcRenderer.invoke('pomodoro:resize', width, height);
+  },
 });
