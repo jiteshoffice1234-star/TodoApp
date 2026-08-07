@@ -98,6 +98,22 @@ class DatabaseHelper {
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    // Older DB versions predate the smart_lists table — it was only created
+    // in _createDB, so upgrades never had it and SmartListRepository would
+    // crash with "no such table". Create it (if missing) on every upgrade.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS smart_lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        icon TEXT DEFAULT '📌',
+        filter INTEGER DEFAULT 0,
+        searchQuery TEXT DEFAULT '',
+        selectedTag TEXT DEFAULT '',
+        sortOrder INTEGER DEFAULT 0,
+        priority TEXT DEFAULT '',
+        dueToday INTEGER DEFAULT 0
+      )
+    ''');
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE todos ADD COLUMN tags TEXT DEFAULT ""');
       await db.execute('ALTER TABLE todos ADD COLUMN attachments TEXT DEFAULT ""');

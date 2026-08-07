@@ -99,6 +99,15 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
+  /// Requests the POST_NOTIFICATIONS runtime permission (Android 13+).
+  /// Best-effort: used so the foreground ticker notification stays visible.
+  Future<void> requestPermission() async {
+    if (!_initialized) return;
+    final implementation = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await implementation?.requestNotificationsPermission();
+  }
+
   Future<void> scheduleRecurringReminder(Todo todo) async {
     if (todo.recurringConfig.type == RecurrenceType.none) return;
     if (!todo.hasReminder || todo.reminderAt == null) return;

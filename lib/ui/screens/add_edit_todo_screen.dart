@@ -109,7 +109,11 @@ class _AddEditTodoScreenState extends State<AddEditTodoScreen> {
                 ButtonSegment(value: 'low', label: Text('Low')),
               ],
               selected: {_priority},
-              onSelectionChanged: (v) => setState(() => _priority = v.first),
+              onSelectionChanged: (v) {
+                if (v.isNotEmpty) {
+                  setState(() => _priority = v.first);
+                }
+              },
             ),
             const SizedBox(height: 20),
             

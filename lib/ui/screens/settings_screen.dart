@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/ticker_overlay_service.dart';
+import '../../core/services/notification_service.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 
 class SettingsScreen extends StatelessWidget {
@@ -96,6 +98,9 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          // Floating task ticker (Android only)
+          if (TickerOverlayService.instance.isSupported) ...[const _TickerOverlaySection()],
+          const SizedBox(height: 16),
           // About section
           Card(
             child: Padding(
@@ -111,7 +116,7 @@ class SettingsScreen extends StatelessWidget {
                   const ListTile(
                     leading: Icon(Icons.info_outline),
                     title: Text('Version'),
-                    subtitle: Text('3.2.0'),
+                    subtitle: Text('3.3.0'),
                   ),
                   const ListTile(
                     leading: Icon(Icons.star_outline),
@@ -126,6 +131,155 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Settings section for the Android always-on-top floating task ticker.
+class _TickerOverlaySection extends StatefulWidget {
+  const _TickerOverlaySection();
+
+  @override
+  State<_TickerOverlaySection> createState() => _TickerOverlaySectionState();
+}
+
+class _TickerOverlaySectionState extends State<_TickerOverlaySection>
+    with WidgetsBindingObserver {
+  bool _loading = true;
+  bool _enabled = false;
+  bool _permissionGranted = false;
+  bool _running = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Returning from the system "Display over other apps" settings page.
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final service = TickerOverlayService.instance;
+    await service.load();
+    final granted = await service.hasPermission();
+    final running = await service.isRunning();
+    if (!mounted) return;
+    setState(() {
+      _enabled = service.isEnabled;
+      _permissionGranted = granted;
+      _running = running;
+      _loading = false;
+    });
+  }
+
+  Future<void> _onEnabledChanged(bool value) async {
+    final service = TickerOverlayService.instance;
+    setState(() => _enabled = value);
+    if (value) {
+      await service.setEnabled(true);
+      if (!await service.hasPermission()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Grant "Display over other apps" permission to show the floating ticker',
+              ),
+            );
+          );
+        }
+        await service.requestPermission();
+      } else {
+        await service.start();
+        // Optimistic: the native service attaches slightly after the channel
+        // call returns, so show it as active right away.
+        if (mounted) setState(() => _running = true);
+        // Best effort: keeps the foreground-service notification visible
+        // (Android 13+).
+        await NotificationService.instance.requestPermission();
+        // Give the native service a moment to attach before re-checking.
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    } else {
+      await service.setEnabled(false);
+      await service.stop();
+    }
+    _refresh();
+  }
+
+  Future<void> _openPermissionSettings() async {
+    await TickerOverlayService.instance.requestPermission();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Floating Task Ticker', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Shows your pending tasks in an always-on-top bar, even while '
+              'using other apps',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enable ticker'),
+              subtitle: Text(
+                _loading
+                    ? '…'
+                    : _enabled
+                        ? (_running ? 'Active — showing pending tasks' : 'Starting…')
+                        : 'Off',
+              ),
+              value: _enabled,
+              onChanged: _onEnabledChanged,
+            ),
+            if (_enabled) ...[const Divider(), const SizedBox(height: 4)],
+            if (_enabled) ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  _permissionGranted ? Icons.check_circle : Icons.warning_amber,
+                  color: _permissionGranted
+                      ? Colors.green
+                      : theme.colorScheme.error,
+                ),
+                title: Text(
+                  _permissionGranted
+                      ? 'Overlay permission granted'
+                      : 'Needs "Display over other apps" permission',
+                ),
+                trailing: TextButton(
+                  onPressed: _openPermissionSettings,
+                  child: const Text('Manage'),
+                ),
+              ),
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.info_outline),
+                title: Text('Tip: long-press the ticker bar to stop it'),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

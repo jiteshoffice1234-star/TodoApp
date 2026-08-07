@@ -77,6 +77,10 @@ class TodoProvider extends ChangeNotifier {
   DateTime _selectedCalendarDate = DateTime.now();
 
   List<Todo> get todos => _filteredTodos;
+
+  /// Unfiltered, unsorted list of all todos currently in memory.
+  /// Used by background services (e.g. the floating task ticker).
+  List<Todo> get rawTodos => _todos;
   List<TodoCategory> get categories => _categories;
   TodoFilter get filter => _filter;
   TodoSort get sort => _sort;
