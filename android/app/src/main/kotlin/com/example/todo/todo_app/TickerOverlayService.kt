@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
@@ -20,9 +21,11 @@ import androidx.core.content.ContextCompat
  * Foreground service that keeps the floating task ticker visible on top of
  * every app, even when the Todo App is backgrounded.
  *
- * Communication:
- *  - Flutter pushes new content via [update] (and initial content via [start]).
- *  - [stop] removes the overlay and stops the service.
+ * Full customization:
+ *  - Draggable (long-press + drag to reposition)
+ *  - Font size, accent color, background color, opacity
+ *  - Position (top/bottom)
+ *  - All settings persisted in SharedPreferences
  */
 class TickerOverlayService : Service() {
 
@@ -30,6 +33,15 @@ class TickerOverlayService : Service() {
         private const val CHANNEL_ID = "ticker_overlay"
         private const val NOTIFICATION_ID = 1001
         private const val ACTION_STOP = "com.example.todo.todo_app.action.STOP_TICKER"
+        private const val PREFS_NAME = "ticker_settings"
+
+        // SharedPreferences keys
+        const val KEY_FONT_SIZE = "ticker_font_size"
+        const val KEY_ACCENT_COLOR = "ticker_accent_color"
+        const val KEY_BG_COLOR = "ticker_bg_color"
+        const val KEY_BG_ALPHA = "ticker_bg_alpha"
+        const val KEY_POSITION_TOP = "ticker_position_top"
+        const val KEY_HEIGHT = "ticker_height"
 
         @Volatile private var activeInstance: TickerOverlayService? = null
         @Volatile private var currentContent: String = ""
@@ -54,8 +66,6 @@ class TickerOverlayService : Service() {
 
         @JvmStatic
         fun stop(context: Context) {
-            // Only dispatch if the service is actually running — otherwise
-            // startService() from a backgrounded app can throw on API 26+.
             if (activeInstance == null) return
             val intent = Intent(context, TickerOverlayService::class.java).setAction(ACTION_STOP)
             context.startService(intent)
@@ -67,14 +77,28 @@ class TickerOverlayService : Service() {
         @JvmStatic
         fun setAccent(argb: Int) {
             currentAccent = argb
+            // Also persist as default accent
+            val prefs = getInstance()?.getPrefs() ?: return
+            prefs.edit().putInt(KEY_ACCENT_COLOR, argb).apply()
             activeInstance?.applyAccent(argb)
         }
+
+        fun getInstance(): TickerOverlayService? = activeInstance
     }
 
     private var windowManager: WindowManager? = null
     private var overlayView: TickerMarqueeView? = null
+    private var overlayParams: WindowManager.LayoutParams? = null
+    private lateinit var prefs: SharedPreferences
+
+    fun getPrefs(): SharedPreferences = prefs
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -89,8 +113,6 @@ class TickerOverlayService : Service() {
         showOverlay()
         setContent(currentContent)
         currentAccent?.let { applyAccent(it) }
-        // NOT_STICKY: if the process dies, don't resurrect a content-less bar;
-        // the Flutter side restores the ticker on next launch/resume.
         return START_NOT_STICKY
     }
 
@@ -99,7 +121,41 @@ class TickerOverlayService : Service() {
     }
 
     fun applyAccent(argb: Int) {
-        overlayView?.setAccentColor(argb)
+        overlayView?.accentColor = argb
+    }
+
+    fun applySettings() {
+        val view = overlayView ?: return
+        val params = overlayParams ?: return
+        val wm = windowManager ?: return
+
+        // Apply font size
+        view.fontSizeSp = prefs.getFloat(KEY_FONT_SIZE, 15f)
+
+        // Apply accent color
+        val accent = prefs.getInt(KEY_ACCENT_COLOR, 0xFF00FFCC.toInt())
+        view.accentColor = accent
+
+        // Apply background color
+        val bg = prefs.getInt(KEY_BG_COLOR, 0xFF1A1A2E.toInt())
+        view.bgColor = bg
+
+        // Apply opacity
+        val alpha = prefs.getFloat(KEY_BG_ALPHA, 0.9f)
+        view.bgAlpha = alpha
+
+        // Apply position
+        val isTop = prefs.getBoolean(KEY_POSITION_TOP, true)
+        params.gravity = if (isTop) Gravity.TOP else Gravity.BOTTOM
+
+        // Apply height
+        val heightDp = prefs.getFloat(KEY_HEIGHT, 64f)
+        params.height = (heightDp * resources.displayMetrics.density).toInt()
+
+        // Update layout
+        try {
+            wm.updateViewLayout(overlayView, params)
+        } catch (_: Exception) {}
     }
 
     private fun canDrawOverlays(): Boolean =
@@ -118,7 +174,11 @@ class TickerOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY
         }
 
-        val heightPx = (46f * resources.displayMetrics.density).toInt()
+        // Read settings
+        val heightDp = prefs.getFloat(KEY_HEIGHT, 64f)
+        val heightPx = (heightDp * resources.displayMetrics.density).toInt()
+        val isTop = prefs.getBoolean(KEY_POSITION_TOP, true)
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             heightPx,
@@ -126,7 +186,34 @@ class TickerOverlayService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP }
+        ).apply {
+            gravity = if (isTop) Gravity.TOP else Gravity.BOTTOM
+        }
+
+        // Apply saved settings to view
+        view.fontSizeSp = prefs.getFloat(KEY_FONT_SIZE, 15f)
+        view.accentColor = prefs.getInt(KEY_ACCENT_COLOR, 0xFF00FFCC.toInt())
+        view.bgColor = prefs.getInt(KEY_BG_COLOR, 0xFF1A1A2E.toInt())
+        view.bgAlpha = prefs.getFloat(KEY_BG_ALPHA, 0.9f)
+
+        // Set initial Y for drag calculations
+        view.setInitialY(params.y)
+
+        // Reposition callback
+        view.onReposition = { newY ->
+            params.y = newY
+            params.gravity = Gravity.TOP // When dragged, always use top gravity with explicit Y
+            try {
+                wm.updateViewLayout(view, params)
+            } catch (_: Exception) {}
+            // Save position
+            prefs.edit().putInt("ticker_y", newY).apply()
+        }
+
+        // Settings popup callback
+        view.onSettingsAction = { action ->
+            handleSettingsAction(action)
+        }
 
         try {
             wm.addView(view, params)
@@ -135,13 +222,84 @@ class TickerOverlayService : Service() {
             return
         }
 
-        // Gentle fade-in so the bar never pops harshly over other apps.
+        // Fade-in
         view.alpha = 0f
         view.animate().alpha(1f).setDuration(220).start()
 
         overlayView = view
+        overlayParams = params
         windowManager = wm
         activeInstance = this
+    }
+
+    private fun handleSettingsAction(action: String) {
+        val editor = prefs.edit()
+        when (action) {
+            "font_up" -> {
+                val current = prefs.getFloat(KEY_FONT_SIZE, 15f)
+                val new = (current + 2f).coerceAtMost(30f)
+                editor.putFloat(KEY_FONT_SIZE, new)
+                editor.apply()
+                applySettings()
+            }
+            "font_down" -> {
+                val current = prefs.getFloat(KEY_FONT_SIZE, 15f)
+                val new = (current - 2f).coerceAtLeast(8f)
+                editor.putFloat(KEY_FONT_SIZE, new)
+                editor.apply()
+                applySettings()
+            }
+            "accent_color" -> {
+                // Cycle through preset colors
+                val presets = intArrayOf(
+                    0xFF00FFCC.toInt(),
+                    0xFF1976D2.toInt(),
+                    0xFF388E3C.toInt(),
+                    0xFFD32F2F.toInt(),
+                    0xFFFF9800.toInt(),
+                    0xFF7B1FA2.toInt(),
+                )
+                val current = prefs.getInt(KEY_ACCENT_COLOR, 0xFF00FFCC.toInt())
+                val idx = presets.indexOf(current)
+                val next = if (idx < 0) 0 else (idx + 1) % presets.size
+                editor.putInt(KEY_ACCENT_COLOR, presets[next])
+                editor.apply()
+                applySettings()
+            }
+            "bg_color" -> {
+                // Cycle through preset backgrounds
+                val presets = intArrayOf(
+                    0xFF1A1A2E.toInt(),
+                    0xFF0D1117.toInt(),
+                    0xFF1E1E2E.toInt(),
+                    0xFF2D2D3D.toInt(),
+                    0xFF000000.toInt(),
+                    0xFF1A1A1A.toInt(),
+                )
+                val current = prefs.getInt(KEY_BG_COLOR, 0xFF1A1A2E.toInt())
+                val idx = presets.indexOf(current)
+                val next = if (idx < 0) 0 else (idx + 1) % presets.size
+                editor.putInt(KEY_BG_COLOR, presets[next])
+                editor.apply()
+                applySettings()
+            }
+            "position" -> {
+                val current = prefs.getBoolean(KEY_POSITION_TOP, true)
+                editor.putBoolean(KEY_POSITION_TOP, !current)
+                editor.apply()
+                applySettings()
+            }
+            "opacity" -> {
+                // Cycle: 0.5 -> 0.7 -> 0.9 -> 1.0 -> 0.5
+                val presets = floatArrayOf(0.5f, 0.7f, 0.9f, 1.0f)
+                val current = prefs.getFloat(KEY_BG_ALPHA, 0.9f)
+                val idx = presets.indexOfFirst { Math.abs(it - current) < 0.01f }
+                val next = if (idx < 0) 2 else (idx + 1) % presets.size
+                editor.putFloat(KEY_BG_ALPHA, presets[next])
+                editor.apply()
+                applySettings()
+            }
+        }
     }
 
     private fun removeOverlay() {
@@ -154,6 +312,7 @@ class TickerOverlayService : Service() {
             }
         }
         overlayView = null
+        overlayParams = null
         windowManager = null
         activeInstance = null
     }
@@ -223,7 +382,7 @@ class TickerOverlayService : Service() {
 
         builder
             .setContentTitle("Todo Ticker")
-            .setContentText("Floating task ticker active — tap to open")
+            .setContentText("Floating task ticker active - tap to open, long-press for settings")
             .setSmallIcon(icon)
             .setOngoing(true)
             .setContentIntent(openPi)

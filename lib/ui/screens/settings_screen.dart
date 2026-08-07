@@ -151,6 +151,32 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
   bool _permissionGranted = false;
   bool _running = false;
 
+  // Customization settings
+  double _fontSize = 15;
+  int _accentColor = 0xFF00FFCC.toInt();
+  int _bgColor = 0xFF1A1A2E.toInt();
+  double _bgAlpha = 0.9;
+  bool _isTop = true;
+  double _height = 64;
+
+  static const List<Color> _accentPresets = [
+    Color(0xFF00FFCC),
+    Color(0xFF1976D2),
+    Color(0xFF388E3C),
+    Color(0xFFD32F2F),
+    Color(0xFFFF9800),
+    Color(0xFF7B1FA2),
+  ];
+
+  static const List<Color> _bgPresets = [
+    Color(0xFF1A1A2E),
+    Color(0xFF0D1117),
+    Color(0xFF1E1E2E),
+    Color(0xFF2D2D3D),
+    Color(0xFF000000),
+    Color(0xFF1A1A1A),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -166,7 +192,6 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Returning from the system "Display over other apps" settings page.
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
@@ -175,12 +200,20 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
     await service.load();
     final granted = await service.hasPermission();
     final running = await service.isRunning();
+    final settings = await service.getSettings();
     if (!mounted) return;
     setState(() {
       _enabled = service.isEnabled;
       _permissionGranted = granted;
       _running = running;
       _loading = false;
+      // Load settings
+      _fontSize = (settings['fontSize'] as num?)?.toDouble() ?? 15;
+      _accentColor = settings['accentColor'] as int? ?? 0xFF00FFCC.toInt();
+      _bgColor = settings['bgColor'] as int? ?? 0xFF1A1A2E.toInt();
+      _bgAlpha = (settings['bgAlpha'] as num?)?.toDouble() ?? 0.9;
+      _isTop = settings['isTop'] as bool? ?? true;
+      _height = (settings['height'] as num?)?.toDouble() ?? 64;
     });
   }
 
@@ -196,19 +229,14 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
               content: Text(
                 'Grant "Display over other apps" permission to show the floating ticker',
               ),
-            );
+            ),
           );
         }
         await service.requestPermission();
       } else {
         await service.start();
-        // Optimistic: the native service attaches slightly after the channel
-        // call returns, so show it as active right away.
         if (mounted) setState(() => _running = true);
-        // Best effort: keeps the foreground-service notification visible
-        // (Android 13+).
         await NotificationService.instance.requestPermission();
-        // Give the native service a moment to attach before re-checking.
         await Future<void>.delayed(const Duration(milliseconds: 500));
       }
     } else {
@@ -235,7 +263,7 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
             const SizedBox(height: 4),
             Text(
               'Shows your pending tasks in an always-on-top bar, even while '
-              'using other apps',
+              'using other apps. Long-press the ticker bar for quick settings.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -244,9 +272,9 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
               title: const Text('Enable ticker'),
               subtitle: Text(
                 _loading
-                    ? '…'
+                    ? '...'
                     : _enabled
-                        ? (_running ? 'Active — showing pending tasks' : 'Starting…')
+                        ? (_running ? 'Active - showing pending tasks' : 'Starting...')
                         : 'Off',
               ),
               value: _enabled,
@@ -254,6 +282,7 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
             ),
             if (_enabled) ...[const Divider(), const SizedBox(height: 4)],
             if (_enabled) ...[
+              // Permission status
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
@@ -272,10 +301,173 @@ class _TickerOverlaySectionState extends State<_TickerOverlaySection>
                   child: const Text('Manage'),
                 ),
               ),
+              const Divider(),
+              // --- CUSTOMIZATION SECTION ---
+              Text('Customization', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 12),
+
+              // Font size
+              Row(
+                children: [
+                  const Icon(Icons.text_fields, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Font size'),
+                  Expanded(
+                    child: Slider(
+                      value: _fontSize,
+                      min: 8,
+                      max: 30,
+                      divisions: 22,
+                      label: '${_fontSize.round()}sp',
+                      onChanged: (v) {
+                        setState(() => _fontSize = v);
+                        TickerOverlayService.instance.setFontSize(v);
+                      },
+                    ),
+                  ),
+                  Text('${_fontSize.round()}sp', style: theme.textTheme.bodySmall),
+                ],
+              ),
+
+              // Height
+              Row(
+                children: [
+                  const Icon(Icons.height, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Height'),
+                  Expanded(
+                    child: Slider(
+                      value: _height,
+                      min: 40,
+                      max: 120,
+                      divisions: 80,
+                      label: '${_height.round()}dp',
+                      onChanged: (v) {
+                        setState(() => _height = v);
+                        TickerOverlayService.instance.setHeight(v);
+                      },
+                    ),
+                  ),
+                  Text('${_height.round()}dp', style: theme.textTheme.bodySmall),
+                ],
+              ),
+
+              // Opacity
+              Row(
+                children: [
+                  const Icon(Icons.opacity, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Opacity'),
+                  Expanded(
+                    child: Slider(
+                      value: _bgAlpha,
+                      min: 0.3,
+                      max: 1.0,
+                      divisions: 7,
+                      label: '${(_bgAlpha * 100).round()}%',
+                      onChanged: (v) {
+                        setState(() => _bgAlpha = v);
+                        TickerOverlayService.instance.setBgOpacity(v);
+                      },
+                    ),
+                  ),
+                  Text('${(_bgAlpha * 100).round()}%', style: theme.textTheme.bodySmall),
+                ],
+              ),
+
+              // Position toggle
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Position at top'),
+                subtitle: Text(_isTop ? 'Top of screen' : 'Bottom of screen'),
+                value: _isTop,
+                onChanged: (v) {
+                  setState(() => _isTop = v);
+                  TickerOverlayService.instance.setPosition(v);
+                },
+              ),
+
+              const SizedBox(height: 8),
+
+              // Accent color
+              Text('Accent color', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _accentPresets.map((c) {
+                  final isSelected = _accentColor == c.value;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _accentColor = c.value);
+                      TickerOverlayService.instance.applyAccent(c.value);
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                        boxShadow: isSelected
+                            ? [BoxShadow(color: c.withOpacity(0.5), blurRadius: 8)]
+                            : null,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, color: Colors.white, size: 18)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Background color
+              Text('Background color', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _bgPresets.map((c) {
+                  final isSelected = _bgColor == c.value;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _bgColor = c.value);
+                      TickerOverlayService.instance.setBgColor(c.value);
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, color: Colors.white, size: 18)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 16),
+              const Divider(),
+
+              // Tips
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.info_outline),
-                title: Text('Tip: long-press the ticker bar to stop it'),
+                title: Text('Tips'),
+                subtitle: Text(
+                  'Long-press the ticker bar for a popup menu with quick settings. '
+                  'Drag to reposition it anywhere on screen.'
+                ),
               ),
             ],
           ],

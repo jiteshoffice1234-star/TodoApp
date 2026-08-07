@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/models/todo.dart';
-import '../data/repositories/todo_repository.dart';
+import '../../data/models/todo.dart';
+import '../../data/repositories/todo_repository.dart';
 
 /// Drives the Android floating task ticker — an always-on-top overlay bar
 /// (like the desktop PiP ticker) that shows pending todos even while the
@@ -130,6 +130,59 @@ class TickerOverlayService {
     try {
       await _channel.invokeMethod<void>('updateTicker', {'content': content});
     } catch (_) {}
+  }
+
+  // --- Ticker customization settings ---
+
+  /// Updates the ticker font size (in sp). Valid range: 8-30.
+  Future<void> setFontSize(double size) async {
+    if (!isSupported) return;
+    try {
+      await _channel.invokeMethod<void>('setTickerFontSize', {'size': size});
+    } catch (_) {}
+  }
+
+  /// Updates the ticker background color (ARGB int).
+  Future<void> setBgColor(int argb) async {
+    if (!isSupported) return;
+    try {
+      await _channel.invokeMethod<void>('setTickerBgColor', {'color': argb});
+    } catch (_) {}
+  }
+
+  /// Updates the ticker background opacity (0.0 - 1.0).
+  Future<void> setBgOpacity(double alpha) async {
+    if (!isSupported) return;
+    try {
+      await _channel.invokeMethod<void>('setTickerBgAlpha', {'alpha': alpha});
+    } catch (_) {}
+  }
+
+  /// Updates the ticker position: true = top, false = bottom.
+  Future<void> setPosition(bool isTop) async {
+    if (!isSupported) return;
+    try {
+      await _channel.invokeMethod<void>('setTickerPosition', {'isTop': isTop});
+    } catch (_) {}
+  }
+
+  /// Updates the ticker bar height (in dp). Valid range: 40-120.
+  Future<void> setHeight(double heightDp) async {
+    if (!isSupported) return;
+    try {
+      await _channel.invokeMethod<void>('setTickerHeight', {'height': heightDp});
+    } catch (_) {}
+  }
+
+  /// Gets current ticker settings from native side.
+  Future<Map<String, dynamic>> getSettings() async {
+    if (!isSupported) return {};
+    try {
+      final result = await _channel.invokeMethod<Map>('getTickerSettings');
+      return Map<String, dynamic>.from(result ?? {});
+    } catch (_) {
+      return {};
+    }
   }
 
   /// Called on app launch/resume: if the ticker was left enabled, restart it.
