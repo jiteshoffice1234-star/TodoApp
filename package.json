@@ -29,6 +29,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },
+    "afterPack": "scripts/apply-icon.js",
     "files": [
       "main.js",
       "preload.js",

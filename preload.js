@@ -1,22 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const updateHandlers = {
-  onUpdateStatus: (callback) => {
-    const handler = (_, data) => callback(data);
-    ipcRenderer.on('update:status', handler);
-    return () => ipcRenderer.removeListener('update:status', handler);
-  },
-  onUpdateProgress: (callback) => {
-    const handler = (_, data) => callback(data);
-    ipcRenderer.on('update:progress', handler);
-    return () => ipcRenderer.removeListener('update:progress', handler);
-  },
-  checkForUpdates: () => ipcRenderer.invoke('update:check'),
-  getUpdateStatus: () => ipcRenderer.invoke('update:get-status'),
-  startDownload: () => ipcRenderer.invoke('update:start-download'),
-  quitAndInstall: () => ipcRenderer.invoke('update:quit-and-install'),
-};
-
 contextBridge.exposeInMainWorld('api', {
   getData: () => ipcRenderer.invoke('get-data'),
   saveData: (data) => ipcRenderer.invoke('save-data', data),
@@ -37,6 +20,4 @@ contextBridge.exposeInMainWorld('api', {
   onPomodoroSync: (callback) => ipcRenderer.on('pomodoro:sync', (_, state) => callback(state)),
   onPomodoroClosedByWindow: (callback) => ipcRenderer.on('pomodoro:closed-by-window', callback),
   setPomodoroTodo: (todoId, title) => ipcRenderer.invoke('pomodoro:set-todo', todoId, title),
-  // Update API
-  ...updateHandlers,
 });

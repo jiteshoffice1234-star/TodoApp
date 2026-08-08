@@ -15,7 +15,7 @@
       <div class="header-left">
         <h1 id="headerTitle">Todo App</h1>
         <span id="todoCount" class="todo-count">0</span>
-
+        <span id="headerClock" class="header-clock" title="Local time">--:--</span>
       </div>
       <div class="header-actions" id="headerActions">
         <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
@@ -94,7 +94,25 @@
     </div>
 
     <div id="shortcutHint" class="shortcut-hint">
-      <kbd>N</kbd> New · <kbd>Esc</kbd> Close
+      <kbd>N</kbd> New · <kbd>Ctrl K</kbd> Commands · <kbd>Esc</kbd> Close
+    </div>
+  </div>
+
+  <!-- Confetti canvas (celebration on completion) -->
+  <canvas id="confettiCanvas" class="confetti-canvas" width="10" height="10"></canvas>
+
+  <!-- Command Palette (Ctrl+K) -->
+  <div id="paletteOverlay" class="palette-overlay hidden">
+    <div class="palette-box">
+      <div class="palette-search-row">
+        <span class="palette-icon">⚡</span>
+        <input type="text" id="paletteInput" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
+        <kbd class="palette-kbd">Esc</kbd>
+      </div>
+      <div id="paletteResults" class="palette-results"></div>
+      <div class="palette-footer">
+        <span>↑↓ navigate</span><span>↵ run</span><span id="paletteEmpty">—</span>
+      </div>
     </div>
   </div>
 

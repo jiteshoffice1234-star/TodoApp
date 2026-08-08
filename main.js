@@ -44,10 +44,12 @@ let pomodoroWindow = null;
 let pomoState = {
   remainingSeconds: 25 * 60,
   totalSeconds: 25 * 60,
+  focusSeconds: 25 * 60, // last focus session length (used when a break ends)
   isRunning: false,
   isBreak: false,
   isStopped: true,
   sessionCount: 0,
+  skipBreaks: false,
   currentTodoId: null,
   todoTitle: null,
 };
@@ -69,36 +71,32 @@ function startPomoTimer() {
 function pomoComplete() {
   if (pomoInterval) clearInterval(pomoInterval);
   pomoState.isRunning = false;
-  pomoState.isStopped = true; // Mark as stopped so picker shows again
-  saveSetting('pomodoroSavedDuration', null);
 
   if (!pomoState.isBreak) {
+    // Focus session completed → advance cycle
     pomoState.sessionCount++;
-    // If skip breaks is enabled, go directly to next focus session
     if (pomoState.skipBreaks) {
-      const mins = Math.round(pomoState.totalSeconds / 60);
+      // Skip breaks: go straight into the next focus session
       pomoState.isBreak = false;
-      pomoState.remainingSeconds = mins * 60;
-      pomoState.totalSeconds = mins * 60;
+      pomoState.remainingSeconds = pomoState.focusSeconds;
+      pomoState.totalSeconds = pomoState.focusSeconds;
     } else {
-      // Switch to break
-      if (pomoState.sessionCount % 4 === 0) {
-        pomoState.isBreak = true;
-        pomoState.remainingSeconds = 15 * 60;
-        pomoState.totalSeconds = 15 * 60;
-      } else {
-        pomoState.isBreak = true;
-        pomoState.remainingSeconds = 5 * 60;
-        pomoState.totalSeconds = 5 * 60;
-      }
+      // Switch to a break (short after each session, long every 4th)
+      pomoState.isBreak = true;
+      const breakMins = (pomoState.sessionCount % 4 === 0) ? 15 : 5;
+      pomoState.remainingSeconds = breakMins * 60;
+      pomoState.totalSeconds = breakMins * 60;
     }
   } else {
-    // Switch back to work (same duration as before)
-    const mins = Math.round(pomoState.totalSeconds / 60);
+    // Break completed → back to focus with the original session length
     pomoState.isBreak = false;
-    pomoState.remainingSeconds = mins * 60;
-    pomoState.totalSeconds = mins * 60;
+    pomoState.remainingSeconds = pomoState.focusSeconds;
+    pomoState.totalSeconds = pomoState.focusSeconds;
   }
+
+  // Auto-continue into the next phase so the pill keeps counting down.
+  pomoState.isStopped = false;
+  startPomoTimer();
 
   sendPomodoroState();
   sendPomodoroNotification();
@@ -372,6 +370,7 @@ ipcMain.handle('pomodoro:command', (_, command) => {
     if (pomoInterval) clearInterval(pomoInterval);
     pomoState.isBreak = false;
     pomoState.isStopped = false;
+    pomoState.focusSeconds = mins * 60;
     pomoState.remainingSeconds = mins * 60;
     pomoState.totalSeconds = mins * 60;
     pomoState.skipBreaks = skipBreaks;
@@ -434,7 +433,13 @@ ipcMain.handle('pomodoro:save-settings', (_, settings) => {
 
 ipcMain.handle('pomodoro:resize', (_, width, height) => {
   if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
-    pomodoroWindow.setSize(width, height);
+    // Relax the minimum size so the small pill can actually shrink below the
+    // window's initial 280x280 minimum, then size it exactly.
+    const w = Math.max(60, Math.round(width));
+    const h = Math.max(30, Math.round(height));
+    pomodoroWindow.setMinimumSize(w, h);
+    pomodoroWindow.setSize(w, h);
+    pomodoroWindow.setResizable(false);
   }
   return true;
 });

@@ -113,6 +113,23 @@ const PRELOAD_SHIM = `
     getPipState: () => Promise.resolve(false),
     onPipSync: (cb) => { window.__pipSyncCb = cb; },
     onPipClosedByPip: (cb) => { window.__pipClosedCb = cb; },
+    // Floating Pomodoro (browser: no-op mocks)
+    openPomodoro: () => Promise.resolve(false),
+    closePomodoro: () => Promise.resolve(),
+    getPomodoroState: () => Promise.resolve({ active: false, isStopped: true, remainingSeconds: 25 * 60, totalSeconds: 25 * 60, isRunning: false, isBreak: false, sessionCount: 0 }),
+    onPomodoroSync: (cb) => { window.__pomoSyncCb = cb; },
+    onPomodoroClosedByWindow: (cb) => { window.__pomoClosedCb = cb; },
+    setPomodoroTodo: () => Promise.resolve(),
+  };
+  // Pomodoro shim for the floating timer page
+  window.pomodoroApi = {
+    onState: (cb) => { window.__pomoStateCb = cb; setTimeout(() => cb({ remainingSeconds: 25 * 60, totalSeconds: 25 * 60, isRunning: false, isBreak: false, isStopped: true, sessionCount: 2 }), 100); },
+    onTheme: (cb) => { window.__pomoThemeCb = cb; },
+    closePomodoro: () => console.log('[Pomo] close'),
+    sendCommand: (cmd) => console.log('[Pomo] command:', cmd),
+    resizeWindow: (w, h) => Promise.resolve(),
+    getSettings: () => Promise.resolve({ pomodoroMinutes: 25, skipBreaks: false }),
+    saveSettings: (s) => Promise.resolve(),
   };
   window.api = api;
   console.log('[Shim] Electron API shim loaded with localStorage persistence ✓');

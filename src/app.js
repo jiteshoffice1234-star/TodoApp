@@ -174,23 +174,6 @@ function applySmartList(sl) {
   renderSmartLists();
   renderTodos();
 }
-function saveCurrentViewAsSmartList() {
-  const name = prompt('Name this smart list:');
-  if (!name || !name.trim()) return;
-  const sl = {
-    id: 'sl_' + Date.now(),
-    name: name.trim(),
-    icon: '📌',
-    filter: currentFilter,
-    tagIds: [],
-    builtin: false,
-  };
-  if (!data.smartLists) data.smartLists = [];
-  data.smartLists.push(sl);
-  applySmartList(sl);
-  persist();
-  showToast(`Smart List "${sl.name}" saved`, '📌');
-}
 function deleteSmartList(id) {
   const sl = (data.smartLists || []).find(s => s.id === id);
   if (!sl || sl.builtin) return;
@@ -415,7 +398,7 @@ function renderTicker() {
       if (!_tickerPaused && _tickerContentWidth > 0) {
         _tickerPos -= _tickerSpeed;
         if (Math.abs(_tickerPos) >= _tickerContentWidth) {
-          _tickerPos = 0;
+          _tickerPos += _tickerContentWidth; // seamless wrap, same as PiP
         }
       }
       ticker.style.transform = 'translateX(' + _tickerPos + 'px)';
@@ -962,7 +945,6 @@ function bindEvents() {
   document.getElementById('clearCompleted').addEventListener('click', clearCompleted);
   document.getElementById('manageTags').addEventListener('click', openTagModal);
   document.getElementById('addTagBtn').addEventListener('click', addTag);
-  document.getElementById('saveSmartListBtn').addEventListener('click', saveCurrentViewAsSmartList);
   document.getElementById('quickAddBtn').addEventListener('click', quickAddTodo);
   document.getElementById('quickAddInput').addEventListener('input', updateQuickAddPreview);
   document.getElementById('quickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); quickAddTodo(); } });
@@ -1020,6 +1002,233 @@ window.toggleTagOption = toggleTagOption;
 
 window.richBold = richBold; window.richItalic = richItalic; window.richUnderline = richUnderline; window.richList = richList;
 window.richCode = richCode; window.richCheckbox = richCheckbox; window.toggleMdPreview = toggleMdPreview; window.onDescInput = onDescInput;
-window.applySmartList = applySmartList; window.deleteSmartList = deleteSmartList;
+window.applySmartList = applySmartList; window.applySmartListById = applySmartListById; window.deleteSmartList = deleteSmartList;
+
+// ============================================================
+// CREATIVE UPGRADES: Confetti, Command Palette, Header Clock
+// ============================================================
+
+// ---------- Header Clock ----------
+let _clockInterval = null;
+function startHeaderClock() {
+  const el = document.getElementById('headerClock');
+  if (!el) return;
+  const tick = () => {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    el.textContent = `${hh}:${mm}`;
+    el.title = d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + ' · ' + d.toLocaleTimeString();
+  };
+  tick();
+  if (_clockInterval) clearInterval(_clockInterval);
+  // Align the first refresh to the next minute boundary, then every 60s
+  const msToNextMinute = (60 - new Date().getSeconds()) * 1000;
+  _clockInterval = setInterval(tick, 60000);
+  setTimeout(() => { tick(); if (_clockInterval) clearInterval(_clockInterval); _clockInterval = setInterval(tick, 60000); }, msToNextMinute);
+}
+
+// ---------- Confetti ----------
+let _confettiRaf = null;
+function launchConfetti() {
+  const canvas = document.getElementById('confettiCanvas');
+  if (!canvas) return;
+  // Cancel any previous burst so bursts never overlap on the shared canvas
+  if (_confettiRaf) cancelAnimationFrame(_confettiRaf);
+  const ctx = canvas.getContext('2d');
+  const DPR = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * DPR;
+  canvas.height = window.innerHeight * DPR;
+  ctx.scale(DPR, DPR);
+
+  const palette = [
+    '#E53935', '#FB8C00', '#FDD835', '#43A047', '#1E88E5',
+    '#8E24AA', '#FF4081', '#00ACC1', '#FFD700', '#FF6B6B',
+  ];
+  const parts = [];
+  const count = 90;
+  const W = window.innerWidth, H = window.innerHeight;
+  const startX = W / 2;
+  const startY = H * 0.42;
+
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 5 + Math.random() * 9;
+    parts.push({
+      x: startX, y: startY,
+      vx: Math.cos(angle) * speed * (0.5 + Math.random()),
+      vy: Math.sin(angle) * speed - 3,
+      size: 4 + Math.random() * 6,
+      color: palette[Math.floor(Math.random() * palette.length)],
+      rot: Math.random() * Math.PI,
+      vrot: (Math.random() - 0.5) * 0.3,
+      shape: Math.random() < 0.5 ? 'rect' : 'circle',
+      life: 1,
+    });
+  }
+
+  const gravity = 0.22;
+  let raf = null;
+  let start = null;
+  const duration = 1800;
+
+  function frame(ts) {
+    if (!start) start = ts;
+    const elapsed = ts - start;
+    ctx.clearRect(0, 0, W, H);
+    for (const p of parts) {
+      p.vy += gravity;
+      p.vx *= 0.99;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vrot;
+      p.life = Math.max(0, 1 - elapsed / duration);
+      ctx.save();
+      ctx.globalAlpha = p.life;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (elapsed < duration) {
+      raf = requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, W, H);
+      _confettiRaf = null;
+    }
+  }
+  raf = requestAnimationFrame(frame);
+  _confettiRaf = raf;
+}
+
+// ---------- Command Palette ----------
+let paletteOpen = false;
+let paletteItems = [];
+let paletteIndex = 0;
+
+function getPaletteCommands(query) {
+  const q = (query || '').toLowerCase().trim();
+  const defaults = getDefaultSmartLists();
+  const user = (data.smartLists || []).filter(s => !s.builtin);
+  const allLists = defaults.concat(user);
+
+  const cmds = [
+    { icon: '✏️', label: 'New Todo', hint: 'N', run: () => openAddModal() },
+    { icon: '⚡', label: 'Quick Add', hint: 'focus bar', run: () => setTimeout(() => document.getElementById('quickAddInput').focus(), 30) },
+    { icon: '🏷️', label: 'Manage Tags', hint: 'tags', run: openTagModal },
+    { icon: '📺', label: 'Pop Out Ticker', hint: 'pip', run: pipToggle },
+    { icon: '⏱️', label: 'Floating Pomodoro', hint: 'focus', run: pomodoroToggle },
+    { icon: '☀️', label: 'Next Theme', hint: 'light/dark/neo', run: toggleTheme },
+    { icon: '🧹', label: 'Clear Completed', hint: 'delete done', run: clearCompleted },
+    { icon: '👁️', label: 'All Todos', hint: 'filter', run: () => setFilterFromPalette('all') },
+    { icon: '⏳', label: 'Pending', hint: 'filter', run: () => setFilterFromPalette('pending') },
+    { icon: '✅', label: 'Done', hint: 'filter', run: () => setFilterFromPalette('done') },
+  ];
+
+  for (const sl of allLists) {
+    cmds.push({ icon: sl.icon, label: `Smart List: ${sl.name}`, hint: 'smart', run: () => applySmartListById(sl.id) });
+  }
+
+  if (!q) return cmds;
+  return cmds.filter(c =>
+    (c.label + ' ' + c.hint + ' ' + c.icon).toLowerCase().includes(q)
+  );
+}
+
+function setFilterFromPalette(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  activeSmartListId = null;
+  renderSmartLists();
+  renderTodos();
+}
+
+function renderPalette() {
+  const box = document.getElementById('paletteResults');
+  const empty = document.getElementById('paletteEmpty');
+  if (!box) return;
+  const query = document.getElementById('paletteInput').value;
+  paletteItems = getPaletteCommands(query);
+  if (!paletteItems.length) {
+    box.innerHTML = '<div class="palette-item" style="opacity:0.6;cursor:default;"><span class="pi-icon">🔍</span><span class="pi-label">No matching commands</span></div>';
+    if (empty) empty.textContent = '0 results';
+    return;
+  }
+  paletteIndex = Math.min(paletteIndex, paletteItems.length - 1);
+  box.innerHTML = paletteItems.map((c, i) => `
+    <div class="palette-item ${i === paletteIndex ? 'active' : ''}" data-idx="${i}" onmousemove="paletteHover(${i})" onclick="paletteRun(${i})">
+      <span class="pi-icon">${c.icon}</span>
+      <span class="pi-label">${escapeHtml(c.label)}</span>
+      <span class="pi-hint">${escapeHtml(c.hint)}</span>
+    </div>`).join('');
+  if (empty) empty.textContent = paletteItems.length + ' command' + (paletteItems.length > 1 ? 's' : '');
+}
+
+function openPalette() {
+  paletteOpen = true;
+  document.getElementById('paletteOverlay').classList.remove('hidden');
+  document.getElementById('paletteInput').value = '';
+  paletteIndex = 0;
+  renderPalette();
+  setTimeout(() => document.getElementById('paletteInput').focus(), 30);
+}
+
+function closePalette() {
+  paletteOpen = false;
+  document.getElementById('paletteOverlay').classList.add('hidden');
+}
+
+window.paletteHover = function(i) { paletteIndex = i; renderPalette(); };
+window.paletteRun = function(i) {
+  const cmd = paletteItems[i];
+  if (!cmd) return;
+  closePalette();
+  cmd.run();
+};
+
+function paletteKey(e) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    if (paletteOpen) closePalette(); else openPalette();
+    return;
+  }
+  if (!paletteOpen) return;
+  if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); paletteIndex = Math.min(paletteIndex + 1, paletteItems.length - 1); renderPalette(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); paletteIndex = Math.max(paletteIndex - 1, 0); renderPalette(); }
+  else if (e.key === 'Enter') { e.preventDefault(); window.paletteRun(paletteIndex); }
+}
+
+// ---------- Wire upgrades into init ----------
+function initCreativeUpgrades() {
+  startHeaderClock();
+  const overlay = document.getElementById('paletteOverlay');
+  if (overlay) {
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closePalette(); });
+  }
+  const input = document.getElementById('paletteInput');
+  if (input) {
+    input.addEventListener('input', () => { paletteIndex = 0; renderPalette(); });
+  }
+  document.addEventListener('keydown', paletteKey);
+}
+
+// Celebrate when a task is completed
+const _origToggleTodo = window.toggleTodo;
+window.toggleTodo = function(id) {
+  const todo = data.todos.find(t => t.id === id);
+  const completing = todo && !todo.completed;
+  _origToggleTodo(id);
+  if (completing) launchConfetti();
+};
+
+initCreativeUpgrades();
 
 init();
