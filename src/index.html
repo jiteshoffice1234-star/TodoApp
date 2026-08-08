@@ -15,45 +15,16 @@
       <div class="header-left">
         <h1 id="headerTitle">Todo App</h1>
         <span id="todoCount" class="todo-count">0</span>
-        <!-- Mood Widget -->
-        <div id="moodWidget" class="mood-widget" title="How are you feeling?">
-          <span id="moodEmoji" class="mood-emoji">😊</span>
-          <div id="moodPicker" class="mood-picker hidden">
-            <button class="mood-opt" data-rating="5" title="Amazing!">😁</button>
-            <button class="mood-opt" data-rating="4" title="Good">😊</button>
-            <button class="mood-opt" data-rating="3" title="Okay">😐</button>
-            <button class="mood-opt" data-rating="2" title="Meh">😕</button>
-            <button class="mood-opt" data-rating="1" title="Bad">😢</button>
-          </div>
-        </div>
+
       </div>
       <div class="header-actions" id="headerActions">
         <button id="multiSelectBtn" class="icon-btn" title="Multi-select">☑️</button>
-        <button id="viewToggle" class="icon-btn" title="Toggle view (L/C/B/T/D)">📋</button>
+        <button id="viewToggle" class="icon-btn" title="Toggle view (List/Calendar)">📋</button>
         <button id="pomodoroBtn" class="icon-btn" title="Pomodoro Timer">🍅</button>
         <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
         <button id="manageTags" class="icon-btn" title="Tags">🏷️</button>
         <button id="themeToggle" class="icon-btn" title="Toggle theme">🌙</button>
-        <button id="ambientBtn" class="icon-btn" title="Ambient Sounds">🔊</button>
-        <div id="ambientPicker" class="ambient-picker hidden">
-          <div class="ambient-header">
-            <span>🎵 Ambient</span>
-            <button class="ambient-close" id="ambientClose">✕</button>
-          </div>
-          <div class="ambient-options" id="ambientOptions">
-            <button class="ambient-opt" data-sound="off">🔇 Off</button>
-            <button class="ambient-opt" data-sound="rain">🌧 Rain</button>
-            <button class="ambient-opt" data-sound="ocean">🌊 Ocean</button>
-            <button class="ambient-opt" data-sound="forest">🌲 Forest</button>
-            <button class="ambient-opt" data-sound="coffee">☕ Coffee</button>
-            <button class="ambient-opt" data-sound="white">📡 White Noise</button>
-          </div>
-          <div class="ambient-volume-row">
-            <span class="ambient-vol-icon">🔈</span>
-            <input type="range" id="ambientVolume" class="ambient-slider" min="0" max="1" step="0.05" value="0.5" />
-            <span class="ambient-vol-icon">🔊</span>
-          </div>
-        </div>
+
         <button id="pipBtn" class="icon-btn" title="Pop Out Ticker">📺</button>
         <button id="pomoFloatBtn" class="icon-btn" title="Floating Pomodoro">⏱️</button>
         <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
@@ -134,103 +105,7 @@
         <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
       </div>
       <div id="calGrid" class="cal-grid"></div>
-      <div id="calTodos" class="cal-todos"></div>
-    </div>
-
-    <!-- Board View -->
-    <div id="boardView" class="board-view hidden">
-      <div class="board-cols">
-        <div class="board-col" data-status="todo">
-          <div class="board-col-header">
-            <span class="board-col-icon">📋</span>
-            <span class="board-col-title">To Do</span>
-            <span id="boardCountTodo" class="board-col-count">0</span>
-          </div>
-          <div id="boardListTodo" class="board-list" ondrop="onBoardDrop(event,'todo')"></div>
-        </div>
-        <div class="board-col" data-status="in_progress">
-          <div class="board-col-header">
-            <span class="board-col-icon">⚡</span>
-            <span class="board-col-title">In Progress</span>
-            <span id="boardCountProgress" class="board-col-count">0</span>
-          </div>
-          <div id="boardListProgress" class="board-list" ondrop="onBoardDrop(event,'in_progress')"></div>
-        </div>
-        <div class="board-col" data-status="done">
-          <div class="board-col-header">
-            <span class="board-col-icon">✅</span>
-            <span class="board-col-title">Done</span>
-            <span id="boardCountDone" class="board-col-count">0</span>
-          </div>
-          <div id="boardListDone" class="board-list" ondrop="onBoardDrop(event,'done')"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Timeline View -->
-    <div id="timelineView" class="timeline-view hidden">
-      <div class="tl-header">
-        <span class="tl-title">📊 Activity Timeline</span>
-        <button class="tl-refresh" onclick="renderTimeline()" title="Refresh">🔄</button>
-      </div>
-      <div id="tlContent" class="tl-content"></div>
-    </div>
-
-    <!-- Dashboard View -->
-    <div id="dashboardView" class="dashboard-view hidden">
-      <div class="dash-header">
-        <span class="dash-title">📈 Weekly Review</span>
-        <span id="dashWeek" class="dash-week"></span>
-      </div>
-      <div class="dash-grid">
-        <div class="dash-card" id="dashCompletion">
-          <div class="dash-card-icon">🏆</div>
-          <div class="dash-card-value" id="dashCompletionVal">0%</div>
-          <div class="dash-card-label">Completion Rate</div>
-        </div>
-        <div class="dash-card" id="dashFocus">
-          <div class="dash-card-icon">⏱</div>
-          <div class="dash-card-value" id="dashFocusVal">0m</div>
-          <div class="dash-card-label">Focus Time</div>
-        </div>
-        <div class="dash-card" id="dashStreak">
-          <div class="dash-card-icon">🔥</div>
-          <div class="dash-card-value" id="dashStreakVal">0</div>
-          <div class="dash-card-label">Day Streak</div>
-        </div>
-        <div class="dash-card" id="dashCreated">
-          <div class="dash-card-icon">✨</div>
-          <div class="dash-card-value" id="dashCreatedVal">0</div>
-          <div class="dash-card-label">Tasks Created</div>
-        </div>
-      </div>
-      <div class="dash-section">
-        <div class="dash-section-title">📊 7-Day Activity</div>
-        <div id="dashChart" class="dash-chart"></div>
-      </div>
-      <div class="dash-section">
-        <div class="dash-section-title">🏷 Top Tags</div>
-        <div id="dashTags" class="dash-tags"></div>
-      </div>
-      <div class="dash-section">
-        <div class="dash-section-title">🌊 Mood vs Focus</div>
-        <div id="dashMood" class="dash-mood"></div>
-      </div>
-    </div>
-
-    <!-- Mood Log Modal -->
-    <div id="moodModal" class="modal hidden">
-      <div class="modal-overlay"></div>
-      <div class="modal-content" style="max-width:360px;">
-        <div class="modal-header">
-          <h2>🌊 Mood Log</h2>
-          <button class="icon-btn" onclick="closeMoodModal()">✕</button>
-        </div>
-        <div class="modal-body" style="text-align:center;">
-          <div id="moodHistory" class="mood-history"></div>
-        </div>
-      </div>
-    </div>
+      <div id="calTodos" class="cal-todos"></div>    </div>
 
     <!-- Empty State -->
     <div id="emptyState" class="empty-state hidden">
@@ -255,10 +130,7 @@
           <span class="sd-action-icon">🍅</span>
           <span class="sd-action-label">Focus</span>
         </button>
-        <button class="sd-action" onclick="closeSpeedDial();openMoodModal()" title="Log Mood">
-          <span class="sd-action-icon">🌊</span>
-          <span class="sd-action-label">Mood</span>
-        </button>
+
       </div>
       <button id="addBtn" class="fab" title="New Todo (N)">
         <span id="fabIcon" class="fab-icon">+</span>
@@ -280,7 +152,6 @@
       </div>
       <div class="modal-body" style="text-align:center;">
         <div id="pomoTodoSelector" style="margin-bottom:12px;"></div>
-        <div id="focusTodoInfo" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;"></div>
         <div class="pomo-ring">
           <svg viewBox="0 0 200 200">
             <circle class="pomo-bg" cx="100" cy="100" r="90"/>
@@ -295,7 +166,7 @@
           <button id="pomoPlayBtn" class="pomo-play" onclick="pomoToggle()">▶</button>
           <button class="pomo-ctrl" onclick="pomoSkip()" title="Skip">⏭</button>
         </div>
-        <div id="focusStats" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);"></div>
+
       </div>
     </div>
   </div>
@@ -351,32 +222,6 @@
 
         <label>Tags</label>
         <div id="tagSelector" class="tag-selector"></div>
-
-        <label>📋 Subtasks</label>
-        <div id="subtaskSection" class="subtask-section">
-          <div id="subtaskList" class="subtask-list"></div>
-          <div class="subtask-add">
-            <input type="text" id="subtaskInput" placeholder="Add a subtask..." onkeydown="if(event.key==='Enter')addSubtask()" />
-            <button class="btn-primary" onclick="addSubtask()">+</button>
-          </div>
-        </div>
-
-        <div class="modal-row">
-          <div>
-            <label>🔄 Recurring</label>
-            <select id="todoRecurring">
-              <option value="none">None</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </div>
-          <div id="recurringIntervalWrap" class="hidden">
-            <label>Every</label>
-            <input type="number" id="recurringInterval" value="1" min="1" max="365" />
-          </div>
-        </div>
 
         <label>⏰ Reminder</label>
         <label class="switch">
@@ -452,15 +297,14 @@
         <div class="settings-section">
           <div class="settings-section-title">ℹ About</div>
           <div class="about-info">
-            <span>Todo App v1.14.0</span>
-            <span style="font-size:12px;color:var(--text-muted);">Built with Electron + Web Audio API</span>
+            <span>Todo App v1.16.0</span>
+            <span style="font-size:12px;color:var(--text-muted);">Built with Electron</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="ambient_sounds.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
