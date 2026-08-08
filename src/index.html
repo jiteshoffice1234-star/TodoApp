@@ -20,7 +20,6 @@
       <div class="header-actions" id="headerActions">
         <button id="multiSelectBtn" class="icon-btn" title="Multi-select">☑️</button>
         <button id="viewToggle" class="icon-btn" title="Toggle view (List/Calendar)">📋</button>
-        <button id="pomodoroBtn" class="icon-btn" title="Pomodoro Timer">🍅</button>
         <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
         <button id="manageTags" class="icon-btn" title="Tags">🏷️</button>
         <button id="themeToggle" class="icon-btn" title="Toggle theme">🌙</button>
@@ -126,10 +125,6 @@
           <span class="sd-action-icon">⚡</span>
           <span class="sd-action-label">Quick Add</span>
         </button>
-        <button class="sd-action" onclick="closeSpeedDial();openPomodoro()" title="Focus Mode">
-          <span class="sd-action-icon">🍅</span>
-          <span class="sd-action-label">Focus</span>
-        </button>
 
       </div>
       <button id="addBtn" class="fab" title="New Todo (N)">
@@ -139,35 +134,6 @@
 
     <div id="shortcutHint" class="shortcut-hint">
       <kbd>N</kbd> New · <kbd>/</kbd> Search · <kbd>V</kbd> Views · <kbd>Esc</kbd> Close
-    </div>
-  </div>
-
-  <!-- Pomodoro Modal -->
-  <div id="pomodoroModal" class="modal hidden">
-    <div class="modal-overlay"></div>
-    <div class="modal-content pomodoro-content">
-      <div class="modal-header">
-        <h2>🍅 Pomodoro Timer</h2>
-        <button class="icon-btn" onclick="closePomodoro()">✕</button>
-      </div>
-      <div class="modal-body" style="text-align:center;">
-        <div id="pomoTodoSelector" style="margin-bottom:12px;"></div>
-        <div class="pomo-ring">
-          <svg viewBox="0 0 200 200">
-            <circle class="pomo-bg" cx="100" cy="100" r="90"/>
-            <circle id="pomoProgress" class="pomo-progress" cx="100" cy="100" r="90"/>
-          </svg>
-          <div class="pomo-time" id="pomoTime">25:00</div>
-          <div class="pomo-label" id="pomoLabel">Focus Time</div>
-        </div>
-        <div class="pomo-sessions" id="pomoSessions"></div>
-        <div class="pomo-controls">
-          <button class="pomo-ctrl" onclick="pomoReset()" title="Reset">↺</button>
-          <button id="pomoPlayBtn" class="pomo-play" onclick="pomoToggle()">▶</button>
-          <button class="pomo-ctrl" onclick="pomoSkip()" title="Skip">⏭</button>
-        </div>
-
-      </div>
     </div>
   </div>
 

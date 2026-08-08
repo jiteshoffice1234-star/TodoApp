@@ -28,15 +28,6 @@ let selectedIds = new Set();
 let notifiedTodos = new Set();
 let calYear, calMonth;
 
-
-// Pomodoro
-let pomoRunning = false;
-let pomoIsBreak = false;
-let pomoSeconds = 25 * 60;
-let pomoTotal = 25 * 60;
-let pomoInterval = null;
-let pomoSessions = 0;
-
 // --- Init ---
 async function init() {
   const raw = await window.api.getData();
@@ -688,75 +679,6 @@ function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
 function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
 function selectCalDay(dateStr) { data._selectedCalDay = dateStr; renderCalendar(); }
 
-// --- Pomodoro ---
-function openPomodoro() {
-  document.getElementById('pomodoroModal').classList.remove('hidden');
-  renderPomoSessions();
-  updatePomoDisplay();
-}
-function closePomodoro() {
-  document.getElementById('pomodoroModal').classList.add('hidden');
-}
-function pomoToggle() {
-  if (pomoRunning) { pomoPause(); } else { pomoStart(); }
-}
-function pomoStart() {
-  if (pomoInterval) clearInterval(pomoInterval); // Prevent timer stacking
-  pomoRunning = true;
-  pomoInterval = setInterval(() => {
-    if (pomoSeconds > 0) { pomoSeconds--; updatePomoDisplay(); }
-    else { pomoComplete(); }
-  }, 1000);
-  updatePomoDisplay();
-  document.getElementById('pomoPlayBtn').textContent = '⏸';
-}
-function pomoPause() {
-  pomoRunning = false;
-  clearInterval(pomoInterval);
-  updatePomoDisplay();
-  document.getElementById('pomoPlayBtn').textContent = '▶';
-}
-function pomoReset() {
-  pomoPause();
-  pomoSeconds = pomoIsBreak ? 5 * 60 : 25 * 60;
-  pomoTotal = pomoSeconds;
-  updatePomoDisplay();
-}
-function pomoSkip() { pomoPause(); pomoComplete(); }
-function pomoComplete() {
-  pomoPause();
-  if (!pomoIsBreak) {
-    pomoSessions++;
-    if (pomoSessions % 4 === 0) { pomoIsBreak = true; pomoSeconds = 15 * 60; }
-    else { pomoIsBreak = true; pomoSeconds = 5 * 60; }
-  } else {
-    pomoIsBreak = false;
-    pomoSeconds = 25 * 60;
-  }
-  pomoTotal = pomoSeconds;
-  renderPomoSessions();
-  updatePomoDisplay();
-  window.api.sendNotification('Pomodoro', pomoIsBreak ? 'Break time!' : 'Focus time!');
-}
-function updatePomoDisplay() {
-  const min = Math.floor(pomoSeconds / 60);
-  const sec = pomoSeconds % 60;
-  document.getElementById('pomoTime').textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  document.getElementById('pomoLabel').textContent = pomoIsBreak ? 'Break Time' : 'Focus Time';
-  const pct = pomoTotal > 0 ? ((pomoTotal - pomoSeconds) / pomoTotal) : 0;
-  const circle = document.getElementById('pomoProgress');
-  if (circle) {
-    const circumference = 2 * Math.PI * 90;
-    circle.style.strokeDasharray = circumference;
-    circle.style.strokeDashoffset = circumference * (1 - pct);
-  }
-}
-function renderPomoSessions() {
-  const el = document.getElementById('pomoSessions');
-  el.innerHTML = Array.from({ length: 4 }, (_, i) =>
-    `<span class="pomo-dot ${i < (pomoSessions % 4) ? 'filled' : ''}"></span>`
-  ).join('') + `<span class="pomo-session-text">Session ${pomoSessions + 1}</span>`;
-}
 // --- Markdown helpers ---
 function mdToHtml(text) {
   if (!text) return '';
@@ -1259,7 +1181,6 @@ function bindEvents() {
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('addTagBtn').addEventListener('click', addTag);
   document.getElementById('multiSelectBtn').addEventListener('click', toggleMultiSelect);
-  document.getElementById('pomodoroBtn').addEventListener('click', openPomodoro);
   document.getElementById('saveSmartListBtn').addEventListener('click', saveCurrentViewAsSmartList);
   document.getElementById('quickAddBtn').addEventListener('click', quickAddTodo);
   document.getElementById('quickAddInput').addEventListener('input', updateQuickAddPreview);
