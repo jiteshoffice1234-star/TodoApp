@@ -23,8 +23,6 @@ const THEMES = [
 const VIEWS = ['list', 'calendar'];
 const VIEW_LABELS = { list: '📋 List', calendar: '📅 Calendar' };
 let currentView = 'list';
-let multiSelectMode = false;
-let selectedIds = new Set();
 let notifiedTodos = new Set();
 let calYear, calMonth;
 
@@ -597,18 +595,13 @@ function renderTodos() {
         </div>`;
     }
 
-    // Multi-select
-    const selClass = selectedIds.has(todo.id) ? 'selected' : '';
-    const selCheck = multiSelectMode ? `<div class="todo-select-check ${selClass}" onclick="event.stopPropagation();toggleSelect(${todo.id})">${selectedIds.has(todo.id) ? '☑️' : '⬜'}</div>` : '';
-
     // Drag handle
     const dragHandle = `<span class="drag-handle" draggable="true" data-id="${todo.id}">⋮⋮</span>`;
 
     return `
-      <div class="todo-card ${todo.completed ? 'completed' : ''} ${todo.pinned ? 'pinned' : ''} ${selClass}" data-id="${todo.id}" style="animation-delay:${idx * 40}ms" onclick="${multiSelectMode ? `toggleSelect(${todo.id})` : `editTodo(${todo.id})`}">
+      <div class="todo-card ${todo.completed ? 'completed' : ''} ${todo.pinned ? 'pinned' : ''}" data-id="${todo.id}" style="animation-delay:${idx * 40}ms" onclick="editTodo(${todo.id})">
         <div class="todo-row1">
           ${dragHandle}
-          ${selCheck}
           <span class="pin-icon ${todo.pinned ? 'pinned' : ''}" onclick="event.stopPropagation();togglePin(${todo.id})" title="${todo.pinned ? 'Unpin' : 'Pin to top'}">${pinIcon}</span>
           <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" onclick="event.stopPropagation();toggleTodo(${todo.id})"></div>
           ${tagDotsHtml}
@@ -976,7 +969,6 @@ async function clearCompleted() {
 function editTodo(id) {
   const todo = data.todos.find(t => t.id === id);
   if (!todo) return;
-  if (multiSelectMode) { showToast('Exit multi-select mode to edit', '⚠️'); return; }
   editingTodoId = id;
   document.getElementById('modalTitle').textContent = '📝 Edit Todo';
   document.getElementById('saveBtn').textContent = '💾 Update';
@@ -1074,42 +1066,6 @@ function saveTodo() {
 
 
 
-// --- Multi-select ---
-function toggleMultiSelect() {
-  multiSelectMode = !multiSelectMode;
-  selectedIds.clear();
-  document.getElementById('multiSelectBar').classList.toggle('hidden', !multiSelectMode);
-  document.getElementById('multiSelectBtn').classList.toggle('active', multiSelectMode);
-  renderTodos();
-}
-function toggleSelect(id) {
-  if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
-  document.getElementById('selectedCount').textContent = `${selectedIds.size} selected`;
-  renderTodos();
-}
-function bulkClearSelection() { multiSelectMode = false; selectedIds.clear(); document.getElementById('multiSelectBar').classList.add('hidden'); renderTodos(); }
-function bulkComplete() {
-  for (const id of selectedIds) { const t = data.todos.find(x => x.id === id); if (t) { t.completed = true; t.updatedAt = Date.now(); } }
-  showToast(`${selectedIds.size} todos completed`, '✅');
-  bulkClearSelection(); persist(); renderAll();
-}
-async function bulkDelete() {
-  const result = await window.api.confirmDelete(`Delete ${selectedIds.size} todos?`);
-  if (result === 1) {
-    const deleted = data.todos.filter(t => selectedIds.has(t.id));
-    data.todos = data.todos.filter(t => !selectedIds.has(t.id));
-    data.deletedTodos.unshift(...deleted);
-    if (data.deletedTodos.length > 10) data.deletedTodos = data.deletedTodos.slice(0, 10);
-    const count = selectedIds.size;
-    bulkClearSelection();
-    persist(); renderAll();
-    showToast(`${count} todos deleted`, '🗑️', 4000, () => {
-      data.todos.unshift(...data.deletedTodos.splice(0, deleted.length));
-      persist(); renderAll();
-    });
-  }
-}
-
 // --- Tags ---
 function renderTagSelector() {
   const container = document.getElementById('tagSelector');
@@ -1180,7 +1136,6 @@ function bindEvents() {
   document.getElementById('manageTags').addEventListener('click', openTagModal);
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('addTagBtn').addEventListener('click', addTag);
-  document.getElementById('multiSelectBtn').addEventListener('click', toggleMultiSelect);
   document.getElementById('saveSmartListBtn').addEventListener('click', saveCurrentViewAsSmartList);
   document.getElementById('quickAddBtn').addEventListener('click', quickAddTodo);
   document.getElementById('quickAddInput').addEventListener('input', updateQuickAddPreview);
@@ -1252,8 +1207,7 @@ window.toggleSpeedDial = toggleSpeedDial; window.closeSpeedDial = closeSpeedDial
 window.toggleTodo = toggleTodo; window.togglePin = togglePin; window.deleteTodo = deleteTodo;
 window.editTodo = editTodo; window.closeModal = closeModal; window.closeTagModal = closeTagModal;
 window.selectTagColor = selectTagColor; window.deleteTag = deleteTag;
-window.toggleTagOption = toggleTagOption; window.toggleSelect = toggleSelect;
-window.bulkComplete = bulkComplete; window.bulkDelete = bulkDelete; window.bulkClearSelection = bulkClearSelection;
+window.toggleTagOption = toggleTagOption;
 
 window.richBold = richBold; window.richItalic = richItalic; window.richUnderline = richUnderline; window.richList = richList;
 window.richCode = richCode; window.richCheckbox = richCheckbox; window.toggleMdPreview = toggleMdPreview; window.onDescInput = onDescInput;

@@ -163,29 +163,6 @@ header h1 {
 }
 .ticker-item::before { content: '▸ '; opacity: 0.6; }
 
-/* ===== MULTI-SELECT BAR ===== */
-.multi-select-bar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px;
-  background: var(--primary); color: white;
-  font-size: 13px; font-weight: 600;
-  animation: slideDown 0.25s var(--ease-smooth);
-}
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.ms-btn {
-  background: rgba(255,255,255,0.18); border: none; color: white;
-  padding: 6px 16px; border-radius: var(--radius-sm);
-  cursor: pointer; font-weight: 600; font-size: 12px;
-  transition: all 0.15s;
-}
-.ms-btn:hover {
-  background: rgba(255,255,255,0.3);
-  transform: translateY(-1px);
-}
-
 /* ===== SMART LISTS ===== */
 .smart-lists {
   display: flex; gap: 6px; padding: 8px 16px 0;
@@ -334,10 +311,7 @@ body.theme-glass .modal-content {
   border-left: 3px solid var(--primary);
   background: linear-gradient(135deg, var(--primary-light), var(--surface));
 }
-.todo-card.selected {
-  border: 2px solid var(--primary);
-  background: var(--primary-light);
-}
+
 .todo-card.dragging {
   opacity: 0.3; transform: scale(0.97) rotate(2deg);
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
@@ -362,7 +336,7 @@ body.theme-glass .modal-content {
 .drag-handle:hover { opacity: 0.8; transform: scale(1.2); }
 .drag-handle:active { cursor: grabbing; }
 
-.todo-select-check { font-size: 16px; cursor: pointer; flex-shrink: 0; }
+
 .pin-icon { font-size: 13px; opacity: 0.35; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
 .pin-icon:hover { opacity: 1; transform: scale(1.2); }
 .pin-icon.pinned { opacity: 1; }

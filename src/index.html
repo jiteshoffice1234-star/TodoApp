@@ -18,7 +18,6 @@
 
       </div>
       <div class="header-actions" id="headerActions">
-        <button id="multiSelectBtn" class="icon-btn" title="Multi-select">☑️</button>
         <button id="viewToggle" class="icon-btn" title="Toggle view (List/Calendar)">📋</button>
         <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
         <button id="manageTags" class="icon-btn" title="Tags">🏷️</button>
@@ -29,14 +28,6 @@
         <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
       </div>
     </header>
-
-    <!-- Multi-select toolbar -->
-    <div id="multiSelectBar" class="multi-select-bar hidden">
-      <span id="selectedCount">0 selected</span>
-      <button class="ms-btn" onclick="bulkComplete()">✅ Complete</button>
-      <button class="ms-btn" onclick="bulkDelete()">🗑️ Delete</button>
-      <button class="ms-btn" onclick="bulkClearSelection()">✕ Cancel</button>
-    </div>
 
     <!-- News Ticker -->
     <div class="ticker-window">
