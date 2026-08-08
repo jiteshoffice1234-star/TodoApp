@@ -25,7 +25,6 @@
 
         <button id="pipBtn" class="icon-btn" title="Pop Out Ticker">📺</button>
         <button id="pomoFloatBtn" class="icon-btn" title="Floating Pomodoro">⏱️</button>
-        <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
       </div>
     </header>
 
@@ -217,47 +216,6 @@
           <button class="btn-primary" id="addTagBtn">+</button>
         </div>
         <div id="tagList" class="cat-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="modal hidden">
-    <div class="modal-overlay"></div>
-    <div class="modal-content" style="max-width:420px;">
-      <div class="modal-header">
-        <h2>⚙️ Settings</h2>
-        <button class="icon-btn" onclick="closeSettings()">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="settings-section">
-          <div class="settings-section-title">📦 Updates</div>
-          <div id="updateInfo" class="update-info">
-            <span id="updateStatusText">Checking for updates...</span>
-          </div>
-          <div id="updateActions" class="update-actions">
-            <button class="btn-primary" id="checkUpdateBtn" onclick="manualCheckUpdates()">🔄 Check for Updates</button>
-            <button class="btn-primary hidden" id="downloadUpdateBtn" onclick="startUpdateDownload()">⬇ Download Update</button>
-            <button class="btn-primary hidden" id="installUpdateBtn" onclick="quitAndInstall()">🚀 Restart & Install</button>
-          </div>
-          <div id="updateProgressWrap" class="update-progress-wrap hidden">
-            <div class="update-progress-bar">
-              <div id="updateProgressFill" class="update-progress-fill" style="width:0%"></div>
-            </div>
-            <span id="updateProgressText" class="update-progress-text">0%</span>
-          </div>
-          <!-- Lottie Animation for update status -->
-          <div id="updateAnimationWrap" class="update-animation-wrap hidden">
-            <div id="lottieAnimation" class="lottie-animation"></div>
-          </div>
-        </div>
-        <div class="settings-section">
-          <div class="settings-section-title">ℹ About</div>
-          <div class="about-info">
-            <span>Todo App v1.16.0</span>
-            <span style="font-size:12px;color:var(--text-muted);">Built with Electron</span>
-          </div>
-        </div>
       </div>
     </div>
   </div>

@@ -52,7 +52,6 @@ async function init() {
   loadTheme();
   renderAll();
   bindEvents();
-  initDragDrop();
   checkDueNotifications();
   setInterval(checkDueNotifications, 60000);
   // Re-sync PiP when main window is shown again — let interval handle the push
@@ -93,22 +92,6 @@ async function init() {
     tickerWindow.addEventListener('mouseleave', () => { _tickerPaused = false; });
   }
 
-  // Setup update listeners
-  setupUpdateListeners();
-
-  // Initialize Lottie animation for auto-updater UI
-  initUpdateAnimation();
-
-  // Sync with main process's current update state (handles race where
-  // initial 5-second auto-check completed before listeners were registered)
-  if (typeof window.api.getUpdateStatus === 'function') {
-    window.api.getUpdateStatus().then((state) => {
-      if (state && state.status !== 'idle') {
-        _updateState = state;
-        refreshUpdateUI();
-      }
-    }).catch(() => {});
-  }
 }
 
 function loadTheme() { currentTheme = localStorage.getItem('theme') || 'light'; applyTheme(); }
@@ -596,12 +579,9 @@ function renderTodos() {
     }
 
     // Drag handle
-    const dragHandle = `<span class="drag-handle" draggable="true" data-id="${todo.id}">⋮⋮</span>`;
-
     return `
       <div class="todo-card ${todo.completed ? 'completed' : ''} ${todo.pinned ? 'pinned' : ''}" data-id="${todo.id}" style="animation-delay:${idx * 40}ms" onclick="editTodo(${todo.id})">
         <div class="todo-row1">
-          ${dragHandle}
           <span class="pin-icon ${todo.pinned ? 'pinned' : ''}" onclick="event.stopPropagation();togglePin(${todo.id})" title="${todo.pinned ? 'Unpin' : 'Pin to top'}">${pinIcon}</span>
           <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" onclick="event.stopPropagation();toggleTodo(${todo.id})"></div>
           ${tagDotsHtml}
@@ -754,65 +734,6 @@ function onDescInput() {
   if (mdPreviewActive) {
     document.getElementById('mdPreview').innerHTML = mdToHtml(document.getElementById('todoDesc').value);
   }
-}
-
-// --- Drag & Drop ---
-let dragId = null;
-let dragEl = null;
-function initDragDrop() {
-  const list = document.getElementById('todoList');
-  list.addEventListener('dragstart', onDragStart);
-  list.addEventListener('dragenter', onDragEnter);
-  list.addEventListener('dragover', onDragOver);
-  list.addEventListener('dragleave', onDragLeave);
-  list.addEventListener('drop', onDrop);
-  list.addEventListener('dragend', onDragEnd);
-}
-function onDragStart(e) {
-  const handle = e.target.closest('.drag-handle');
-  if (!handle) return;
-  dragEl = handle.closest('.todo-card');
-  if (!dragEl) return;
-  dragId = Number(dragEl.dataset.id);
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setDragImage(dragEl, e.offsetX, e.offsetY);
-  requestAnimationFrame(() => dragEl.classList.add('dragging'));
-}
-function onDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-}
-function onDragEnter(e) {
-  const card = e.target.closest('.todo-card');
-  if (!card || card === dragEl) return;
-  card.classList.add('drag-over');
-}
-function onDragLeave(e) {
-  const card = e.target.closest('.todo-card');
-  if (!card) return;
-  if (e.relatedTarget && card.contains(e.relatedTarget)) return;
-  card.classList.remove('drag-over');
-}
-function onDrop(e) {
-  const target = e.target.closest('.todo-card');
-  if (!target) return;
-  target.classList.remove('drag-over');
-  const toId = Number(target.dataset.id);
-  if (dragId === null || dragId === toId) return;
-  const ids = data.todos.map(t => t.id);
-  const fromIdx = ids.indexOf(dragId);
-  const toIdx = ids.indexOf(toId);
-  if (fromIdx === -1 || toIdx === -1) return;
-  const [item] = data.todos.splice(fromIdx, 1);
-  data.todos.splice(toIdx, 0, item);
-  dragId = null; dragEl = null;
-  persist();
-  renderTodos();
-}
-function onDragEnd() {
-  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-  if (dragEl) dragEl.classList.remove('dragging');
-  dragId = null; dragEl = null;
 }
 
 // ===== SMART QUICK ADD =====
@@ -1134,7 +1055,6 @@ function bindEvents() {
   document.getElementById('pomoFloatBtn').addEventListener('click', pomodoroToggle);
   document.getElementById('clearCompleted').addEventListener('click', clearCompleted);
   document.getElementById('manageTags').addEventListener('click', openTagModal);
-  document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('addTagBtn').addEventListener('click', addTag);
   document.getElementById('saveSmartListBtn').addEventListener('click', saveCurrentViewAsSmartList);
   document.getElementById('quickAddBtn').addEventListener('click', quickAddTodo);
@@ -1213,198 +1133,6 @@ window.richBold = richBold; window.richItalic = richItalic; window.richUnderline
 window.richCode = richCode; window.richCheckbox = richCheckbox; window.toggleMdPreview = toggleMdPreview; window.onDescInput = onDescInput;
 window.calPrev = calPrev; window.calNext = calNext; window.selectCalDay = selectCalDay;
 window.applySmartList = applySmartList; window.deleteSmartList = deleteSmartList;
-window.initDragDrop = initDragDrop;
 window.cycleView = cycleView;
-window.openSettings = openSettings; window.closeSettings = closeSettings;
-window.manualCheckUpdates = manualCheckUpdates;
-window.startUpdateDownload = startUpdateDownload;
-window.quitAndInstall = quitAndInstall;
-
-// --- Settings & Updates ---
-function openSettings() {
-  document.getElementById('settingsModal').classList.remove('hidden');
-  // Show the update animation when settings opens
-  showUpdateAnimation(true);
-  // Refresh update status from main process (handles case where
-  // state changed since startup — e.g., another auto-check completed)
-  if (typeof window.api.getUpdateStatus === 'function') {
-    window.api.getUpdateStatus().then((state) => {
-      if (state) { _updateState = state; refreshUpdateUI(); }
-    }).catch(() => refreshUpdateUI());
-  } else {
-    refreshUpdateUI();
-  }
-}
-
-function closeSettings() {
-  document.getElementById('settingsModal').classList.add('hidden');
-  // Hide animation when settings closes
-  showUpdateAnimation(false);
-}
-let _updateState = { status: 'idle', info: null, progress: null, error: null };
-
-// Initialize the update animation (CSS-only cat crying fallback — no external deps needed)
-function initUpdateAnimation() {
-  const container = document.getElementById('lottieAnimation');
-  if (!container) return;
-  container.innerHTML = '<div class="cat-crying-fallback" title="Cat crying emoji — check for updates">'
-    + '😿'
-    + '<span class="tear left">💧</span>'
-    + '<span class="tear right">💧</span>'
-    + '<span class="tear" style="left:16px;animation-delay:0.8s;animation-duration:1.1s;">💧</span>'
-    + '</div>';
-}
-
-// Show/hide the update animation
-function showUpdateAnimation(show) {
-  const wrap = document.getElementById('updateAnimationWrap');
-  if (!wrap) return;
-  wrap.classList.toggle('hidden', !show);
-}
-
-function setupUpdateListeners() {
-  if (typeof window.api.onUpdateStatus === 'function') {
-    window.api.onUpdateStatus((state) => {
-      _updateState = state;
-      refreshUpdateUI();
-      // Show toast for significant events
-      if (state.status === 'available') {
-        showToast('Update v' + (state.info?.version || '?') + ' available! Open Settings to download', '📦');
-      } else if (state.status === 'not-available') {
-        // Silent — only show in settings panel
-      } else if (state.status === 'downloaded') {
-        showToast('Update downloaded! Restart to install', '🚀');
-      } else if (state.status === 'error') {
-        // Show error only in settings, not on first auto-check
-      }
-    });
-    window.api.onUpdateProgress((progress) => {
-      _updateState = { ..._updateState, status: 'downloading', progress };
-      refreshUpdateUI();
-    });
-  }
-}
-
-function refreshUpdateUI() {
-  const statusText = document.getElementById('updateStatusText');
-  const checkBtn = document.getElementById('checkUpdateBtn');
-  const downloadBtn = document.getElementById('downloadUpdateBtn');
-  const installBtn = document.getElementById('installUpdateBtn');
-  const progressWrap = document.getElementById('updateProgressWrap');
-  const progressFill = document.getElementById('updateProgressFill');
-  const progressText = document.getElementById('updateProgressText');
-  if (!statusText) return;
-
-  switch (_updateState.status) {
-    case 'idle':
-      statusText.textContent = '🔍 Tap "Check for Updates" to check';
-      checkBtn.classList.remove('hidden');
-      downloadBtn.classList.add('hidden');
-      installBtn.classList.add('hidden');
-      progressWrap.classList.add('hidden');
-      break;
-    case 'checking':
-      statusText.textContent = '⏳ Checking for updates...';
-      checkBtn.classList.add('hidden');
-      downloadBtn.classList.add('hidden');
-      installBtn.classList.add('hidden');
-      progressWrap.classList.add('hidden');
-      break;
-    case 'available':
-      statusText.innerHTML = `📦 <strong>v${_updateState.info?.version || '?'}</strong> available!`;
-      checkBtn.classList.add('hidden');
-      downloadBtn.classList.remove('hidden');
-      installBtn.classList.add('hidden');
-      progressWrap.classList.add('hidden');
-      break;
-    case 'not-available':
-      statusText.textContent = '✅ You\'re on the latest version!';
-      checkBtn.classList.remove('hidden');
-      downloadBtn.classList.add('hidden');
-      installBtn.classList.add('hidden');
-      progressWrap.classList.add('hidden');
-      break;
-    case 'downloading':
-      if (_updateState.progress) {
-        const pct = Math.round(_updateState.progress.percent || 0);
-        statusText.textContent = `⬇ Downloading... ${pct}%`;
-        progressFill.style.width = pct + '%';
-        progressText.textContent = pct + '%';
-        progressWrap.classList.remove('hidden');
-      } else {
-        statusText.textContent = '⬇ Downloading...';
-        progressWrap.classList.remove('hidden');
-      }
-      checkBtn.classList.add('hidden');
-      downloadBtn.classList.add('hidden');
-      installBtn.classList.add('hidden');
-      break;
-    case 'downloaded':
-      statusText.innerHTML = '✅ <strong>Downloaded!</strong> Restart to install';
-      checkBtn.classList.add('hidden');
-      downloadBtn.classList.add('hidden');
-      installBtn.classList.remove('hidden');
-      progressWrap.classList.add('hidden');
-      break;
-    case 'error':
-      statusText.textContent = '⚠ ' + (_updateState.error || 'Update check failed. Check your connection.') + ' — You can try again';
-      checkBtn.classList.remove('hidden');
-      downloadBtn.classList.add('hidden');
-      installBtn.classList.add('hidden');
-      progressWrap.classList.add('hidden');
-      break;
-    default:
-      statusText.textContent = 'Update status unknown';
-  }
-}
-
-async function manualCheckUpdates() {
-  if (typeof window.api.checkForUpdates !== 'function') return;
-  
-  _updateState = { status: 'checking', info: null, progress: null, error: null };
-  refreshUpdateUI();
-  
-  // Safety timeout: if no event fires within 30s, revert to idle/error
-  const checkTimeout = setTimeout(() => {
-    if (_updateState.status === 'checking') {
-      _updateState = { status: 'error', info: null, progress: null, error: 'Update check timed out. Check your internet connection.' };
-      refreshUpdateUI();
-    }
-  }, 30000);
-  
-  try {
-    const ok = await window.api.checkForUpdates();
-    clearTimeout(checkTimeout);
-    if (!ok && _updateState.status === 'checking') {
-      // checkForUpdates() returned false but no error event fired — unlikely but handle it
-      _updateState = { status: 'error', info: null, progress: null, error: 'Failed to start update check.' };
-      refreshUpdateUI();
-    }
-  } catch(e) {
-    clearTimeout(checkTimeout);
-    _updateState = { status: 'error', info: null, progress: null, error: e.message || 'Update check failed.' };
-    refreshUpdateUI();
-  }
-}
-
-async function startUpdateDownload() {
-  if (typeof window.api.startDownload !== 'function') return;
-  const ok = await window.api.startDownload();
-  if (!ok) {
-    showToast('Could not start download — update may no longer be available', '⚠️', 4000);
-    // Refresh state in case it changed
-    if (typeof window.api.getUpdateStatus === 'function') {
-      window.api.getUpdateStatus().then((state) => {
-        if (state) { _updateState = state; refreshUpdateUI(); }
-      }).catch(() => {});
-    }
-  }
-}
-
-function quitAndInstall() {
-  if (typeof window.api.quitAndInstall === 'function') {
-    window.api.quitAndInstall();
-  }
-}
 
 init();
