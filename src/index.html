@@ -18,7 +18,6 @@
 
       </div>
       <div class="header-actions" id="headerActions">
-        <button id="viewToggle" class="icon-btn" title="Toggle view (List/Calendar)">📋</button>
         <button id="clearCompleted" class="icon-btn hidden" title="Clear completed">🗑️</button>
         <button id="manageTags" class="icon-btn" title="Tags">🏷️</button>
         <button id="themeToggle" class="icon-btn" title="Toggle theme">🌙</button>
@@ -65,26 +64,8 @@
       </button>
     </div>
 
-    <!-- View Indicator -->
-    <div id="viewIndicator" class="view-indicator">
-      <span class="vi-badge">📋 List View</span>
-    </div>
-
     <!-- Todo List -->
     <div id="todoList" class="todo-list"></div>
-
-    <!-- Calendar View -->
-    <div id="calendarView" class="calendar-view hidden">
-      <div class="cal-header">
-        <button class="cal-nav" onclick="calPrev()">◀</button>
-        <span id="calTitle" class="cal-title"></span>
-        <button class="cal-nav" onclick="calNext()">▶</button>
-      </div>
-      <div class="cal-weekdays">
-        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
-      </div>
-      <div id="calGrid" class="cal-grid"></div>
-      <div id="calTodos" class="cal-todos"></div>    </div>
 
     <!-- Empty State -->
     <div id="emptyState" class="empty-state hidden">
@@ -113,7 +94,7 @@
     </div>
 
     <div id="shortcutHint" class="shortcut-hint">
-      <kbd>N</kbd> New · <kbd>V</kbd> Views · <kbd>Esc</kbd> Close
+      <kbd>N</kbd> New · <kbd>Esc</kbd> Close
     </div>
   </div>
 

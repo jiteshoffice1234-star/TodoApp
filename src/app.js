@@ -19,11 +19,7 @@ const THEMES = [
   { id: 'minimal', icon: '⚪', label: 'Minimal' },
   { id: 'clay', icon: '🏺', label: 'Clay' },
 ];
-const VIEWS = ['list', 'calendar'];
-const VIEW_LABELS = { list: '📋 List', calendar: '📅 Calendar' };
-let currentView = 'list';
 let notifiedTodos = new Set();
-let calYear, calMonth;
 
 // --- Init ---
 async function init() {
@@ -44,10 +40,6 @@ async function init() {
     if (t.reminderFired === undefined) t.reminderFired = false;
     if (t.sortOrder === undefined) t.sortOrder = 0;
   }
-  const now = new Date();
-  calYear = now.getFullYear();
-  calMonth = now.getMonth();
-  data._selectedCalDay = now.toISOString().split('T')[0];
   loadTheme();
   renderAll();
   bindEvents();
@@ -225,30 +217,8 @@ function renderSmartLists() {
 
 // --- Render ---
 function renderAll() {
-  // Hide all view containers
-  ['todoList','calendarView','emptyState'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.add('hidden');
-  });
-  // Show current view
-  const vi = document.getElementById('viewIndicator');
-  if (vi) {
-    vi.innerHTML = `<span class="vi-badge">${VIEW_LABELS[currentView]}</span>`;
-  }
-  switch (currentView) {
-    case 'list': renderTodos(); break;
-    case 'calendar': renderCalendar(); break;
-    default: renderTodos();
-  }
+  renderTodos();
   renderTagSelector(); renderTagList(); updateMeta(); renderTicker(); renderSmartLists();
-}
-
-function cycleView() {
-  const idx = VIEWS.indexOf(currentView);
-  currentView = VIEWS[(idx + 1) % VIEWS.length];
-  document.getElementById('viewToggle').textContent = VIEW_LABELS[currentView].split(' ')[0];
-  renderAll();
-  showToast(`View: ${VIEW_LABELS[currentView]}`, '🔄');
 }
 
 function getFilteredTodos() {
@@ -516,7 +486,6 @@ function renderTodos() {
   const list = getFilteredTodos();
   const container = document.getElementById('todoList');
   const empty = document.getElementById('emptyState');
-  document.getElementById('calendarView').classList.add('hidden');
   container.classList.remove('hidden');
 
   if (list.length === 0) {
@@ -588,60 +557,6 @@ function renderTodos() {
       </div>`;
   }).join('');
 }
-
-// --- Calendar ---
-function renderCalendar() {
-  document.getElementById('todoList').classList.add('hidden');
-  document.getElementById('emptyState').classList.add('hidden');
-  const cal = document.getElementById('calendarView');
-  cal.classList.remove('hidden');
-
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  document.getElementById('calTitle').textContent = `${monthNames[calMonth]} ${calYear}`;
-
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const selectedCalDay = data._selectedCalDay;
-
-  const todosByDate = {};
-  for (const t of data.todos) {
-    if (t.dueDate) {
-      if (!todosByDate[t.dueDate]) todosByDate[t.dueDate] = [];
-      todosByDate[t.dueDate].push(t);
-    }
-  }
-
-  let grid = '';
-  for (let i = 0; i < firstDay; i++) grid += '<div class="cal-cell empty"></div>';
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const isToday = dateStr === todayStr;
-    const isSelected = dateStr === selectedCalDay;
-    const hasTodos = todosByDate[dateStr] && todosByDate[dateStr].length > 0;
-    const dotHtml = hasTodos ? `<span class="cal-dot"></span>` : '';
-    grid += `<div class="cal-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="selectCalDay('${dateStr}')">${d}${dotHtml}</div>`;
-  }
-  document.getElementById('calGrid').innerHTML = grid;
-
-  if (selectedCalDay) {
-    const dayTodos = todosByDate[selectedCalDay] || [];
-    document.getElementById('calTodos').innerHTML = dayTodos.length === 0
-      ? `<div class="cal-empty">No todos for ${formatDate(selectedCalDay)}</div>`
-      : dayTodos.map(t => `
-        <div class="cal-todo-item ${t.completed ? 'completed' : ''}" onclick="editTodo(${t.id})">
-          <div class="todo-checkbox ${t.completed ? 'checked' : ''}" onclick="event.stopPropagation();toggleTodo(${t.id})"></div>
-          <span class="cal-todo-title">${escapeHtml(t.title)}</span>
-          <span class="priority-badge priority-${t.priority}">${capitalize(t.priority)}</span>
-        </div>`).join('');
-  } else {
-    document.getElementById('calTodos').innerHTML = '<div class="cal-empty">Select a day to view todos</div>';
-  }
-}
-function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); }
-function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
-function selectCalDay(dateStr) { data._selectedCalDay = dateStr; renderCalendar(); }
 
 // --- Markdown helpers ---
 function mdToHtml(text) {
@@ -1051,7 +966,6 @@ function bindEvents() {
   document.getElementById('quickAddBtn').addEventListener('click', quickAddTodo);
   document.getElementById('quickAddInput').addEventListener('input', updateQuickAddPreview);
   document.getElementById('quickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); quickAddTodo(); } });
-  document.getElementById('viewToggle').addEventListener('click', cycleView);
 
   document.getElementById('clearDate').addEventListener('click', () => { document.getElementById('todoDueDate').value = ''; });  document.getElementById('todoReminder').addEventListener('change', function () {
     document.getElementById('todoReminderTime').classList.toggle('hidden', !this.checked);
@@ -1094,7 +1008,6 @@ function bindEvents() {
     }
     if ((e.key === 'n' || e.key === 'N') && !e.target.matches('input, textarea, select')) { e.preventDefault(); toggleSpeedDial(); }
 
-    if ((e.key === 'v' || e.key === 'V') && !e.target.matches('input, textarea, select')) { e.preventDefault(); cycleView(); }
   });
 }
 
@@ -1107,8 +1020,6 @@ window.toggleTagOption = toggleTagOption;
 
 window.richBold = richBold; window.richItalic = richItalic; window.richUnderline = richUnderline; window.richList = richList;
 window.richCode = richCode; window.richCheckbox = richCheckbox; window.toggleMdPreview = toggleMdPreview; window.onDescInput = onDescInput;
-window.calPrev = calPrev; window.calNext = calNext; window.selectCalDay = selectCalDay;
 window.applySmartList = applySmartList; window.deleteSmartList = deleteSmartList;
-window.cycleView = cycleView;
 
 init();
