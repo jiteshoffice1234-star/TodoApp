@@ -1231,7 +1231,6 @@ function bindEvents() {
 
   document.getElementById('tagName').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTag(); });
   document.getElementById('todoTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveTodo(); });
-  });
 
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', () => overlay.parentElement.classList.add('hidden'));
@@ -1259,7 +1258,6 @@ window.bulkComplete = bulkComplete; window.bulkDelete = bulkDelete; window.bulkC
 window.richBold = richBold; window.richItalic = richItalic; window.richUnderline = richUnderline; window.richList = richList;
 window.richCode = richCode; window.richCheckbox = richCheckbox; window.toggleMdPreview = toggleMdPreview; window.onDescInput = onDescInput;
 window.calPrev = calPrev; window.calNext = calNext; window.selectCalDay = selectCalDay;
-window.closePomodoro = closePomodoro; window.pomoToggle = pomoToggle; window.pomoReset = pomoReset; window.pomoSkip = pomoSkip;
 window.applySmartList = applySmartList; window.deleteSmartList = deleteSmartList;
 window.initDragDrop = initDragDrop;
 window.cycleView = cycleView;
