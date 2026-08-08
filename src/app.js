@@ -5,7 +5,6 @@ const COLORS = [
 
 let data = { todos: [], tags: [], nextTodoId: 1, nextTagId: 1, deletedTodos: [], settings: {}, smartLists: [] };
 let currentFilter = 'all';
-let searchQuery = '';
 let editingTodoId = null;
 let selectedPriority = 'medium';
 let selectedTagColor = COLORS[0];
@@ -179,9 +178,6 @@ function applySmartListById(id) {
 function applySmartList(sl) {
   activeSmartListId = sl.id;
   currentFilter = sl.filter || 'all';
-  searchQuery = sl.search || '';
-  document.getElementById('searchInput').value = searchQuery;
-  document.getElementById('clearSearch').classList.toggle('hidden', !searchQuery);
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === currentFilter));
   renderSmartLists();
   renderTodos();
@@ -194,7 +190,6 @@ function saveCurrentViewAsSmartList() {
     name: name.trim(),
     icon: '📌',
     filter: currentFilter,
-    search: searchQuery,
     tagIds: [],
     builtin: false,
   };
@@ -208,7 +203,7 @@ function deleteSmartList(id) {
   const sl = (data.smartLists || []).find(s => s.id === id);
   if (!sl || sl.builtin) return;
   data.smartLists = data.smartLists.filter(s => s.id !== id);
-  if (activeSmartListId === id) { activeSmartListId = null; currentFilter = 'all'; searchQuery = ''; document.getElementById('searchInput').value = ''; }
+  if (activeSmartListId === id) { activeSmartListId = null; currentFilter = 'all'; }
   renderSmartLists();
   persist();
   showToast(`"${sl.name}" deleted`, '🗑️');
@@ -258,10 +253,6 @@ function cycleView() {
 
 function getFilteredTodos() {
   let list = [...data.todos];
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    list = list.filter(t => t.title.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q)));
-  }
   if (currentFilter === 'pending') list = list.filter(t => !t.completed);
   if (currentFilter === 'done') list = list.filter(t => t.completed);
   if (currentFilter === 'due-today') {
@@ -531,8 +522,8 @@ function renderTodos() {
   if (list.length === 0) {
     container.innerHTML = '';
     empty.classList.remove('hidden');
-    document.getElementById('emptyTitle').textContent = searchQuery ? 'No results found' : 'No todos yet';
-    document.getElementById('emptySubtitle').textContent = searchQuery ? 'Try a different search' : 'Click + to add your first todo';
+    document.getElementById('emptyTitle').textContent = 'No todos yet';
+    document.getElementById('emptySubtitle').textContent = 'Click + to add your first todo';
     return;
   }
   empty.classList.add('hidden');
@@ -1062,22 +1053,7 @@ function bindEvents() {
   document.getElementById('quickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); quickAddTodo(); } });
   document.getElementById('viewToggle').addEventListener('click', cycleView);
 
-  document.getElementById('clearDate').addEventListener('click', () => { document.getElementById('todoDueDate').value = ''; });
-  document.getElementById('clearSearch').addEventListener('click', () => {
-    document.getElementById('searchInput').value = '';
-    searchQuery = '';
-    document.getElementById('clearSearch').classList.add('hidden');
-    renderTodos();
-  });
-
-  document.getElementById('searchInput').addEventListener('input', (e) => {
-    searchQuery = e.target.value;
-    document.getElementById('clearSearch').classList.toggle('hidden', !searchQuery);
-    renderTodos();
-  });
-
-
-  document.getElementById('todoReminder').addEventListener('change', function () {
+  document.getElementById('clearDate').addEventListener('click', () => { document.getElementById('todoDueDate').value = ''; });  document.getElementById('todoReminder').addEventListener('change', function () {
     document.getElementById('todoReminderTime').classList.toggle('hidden', !this.checked);
     document.getElementById('reminderLabel').textContent = this.checked ? 'Set reminder time' : 'No reminder set';
   });
@@ -1117,7 +1093,7 @@ function bindEvents() {
       document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
     }
     if ((e.key === 'n' || e.key === 'N') && !e.target.matches('input, textarea, select')) { e.preventDefault(); toggleSpeedDial(); }
-    if (e.key === '/' && !e.target.matches('input, textarea, select')) { e.preventDefault(); document.getElementById('searchInput').focus(); }
+
     if ((e.key === 'v' || e.key === 'V') && !e.target.matches('input, textarea, select')) { e.preventDefault(); cycleView(); }
   });
 }
